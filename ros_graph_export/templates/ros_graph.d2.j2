@@ -4,6 +4,22 @@
 
 direction: right
 
+vars: {
+  d2-legend: {
+    style.fill: "#f8f9ff"
+    style.font-color: "#334155"
+    style.border-radius: 8
+    nodes: "Nodes: {{ node_count }}" {
+      style.fill: "#1f77b4"
+      style.font-color: white
+      style.border-radius: 6
+    }
+    nodes -> nodes: "Topics: {{ topic_count }}" {
+      style.stroke: "#17becf"
+    }
+  }
+}
+
 *.style.border-radius: 6
 
 {%- if node_count == 0 %}
