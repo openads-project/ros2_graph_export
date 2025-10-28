@@ -1,0 +1,33 @@
+# Auto-generated ROS graph from ros_graph_export
+# generated_at: {{ generated_at }}
+# nodes: {{ node_count }}, topics: {{ topic_count }}, edges: {{ edge_count }}
+
+direction: right
+
+nodes: Nodes {
+  style.fill: "#1f77b4"
+  style.font-color: white
+  style.border-radius: 6
+}
+
+topics: Topics {
+  style.fill: "#ff7f0e"
+  style.font-color: white
+  style.border-radius: 6
+}
+
+{%- if node_count == 0 and topic_count == 0 %}
+empty: "No active ROS nodes or topics detected"
+{%- else %}
+{%- for node in nodes %}
+{{ node.identifier }}: "{{ node.label | replace('"', '\\"') }}"
+{%- endfor %}
+
+{%- for topic in topics %}
+{{ topic.identifier }}: "{{ topic.label | replace('"', '\\"') }}"
+{%- endfor %}
+
+{%- for edge in edges %}
+{{ edge.source }} -> {{ edge.target }}: "{{ edge.label | replace('"', '\\"') }}"
+{%- endfor %}
+{%- endif %}
