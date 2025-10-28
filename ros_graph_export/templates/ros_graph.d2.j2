@@ -11,7 +11,8 @@ legend: Legend {
   Nodes: "Nodes: {{ node_count }}"
   Topics: "Topics: {{ topic_count }}"
   Real: "Teal edge = publisher to subscriber link"
-  Virtual: "Coral edge = missing publisher or subscriber"
+  MissingSubscribers: "Orange edge = no subscribers observed"
+  MissingPublishers: "Red edge = no publishers observed"
 }
 
 *.style.border-radius: 6
@@ -44,8 +45,10 @@ empty: "No active ROS nodes detected"
 
 {%- for edge in edges %}
 {{ edge.source }} -> {{ edge.target }}: "{{ edge.label | replace('"', '\\"') }}" {
-  {%- if edge.is_virtual %}
-  style.stroke: "#ff9896"
+  {%- if edge.edge_type == "missing_subscribers" %}
+  style.stroke: "#f97316"
+  {%- elif edge.edge_type == "missing_publishers" %}
+  style.stroke: "#ef4444"
   {%- else %}
   style.stroke: "#17becf"
   {%- endif %}

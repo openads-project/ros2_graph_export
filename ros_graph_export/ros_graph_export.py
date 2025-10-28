@@ -40,7 +40,7 @@ class EdgeDescriptor:
     target: str
     topic_name: str
     topic_type: str
-    is_virtual: bool = False
+    edge_type: str = "normal"  # normal, missing_subscribers, missing_publishers
 
     @property
     def label(self) -> str:
@@ -61,6 +61,8 @@ class RosGraphExport(Node):
         self.declare_parameter("export_interval_seconds", 30.0)
         self.declare_parameter("export_on_startup", True)
         self.declare_parameter("include_hidden_entities", False)
+        self.declare_parameter("ignore_topics_without_publishers", True)
+        self.declare_parameter("ignore_topics_without_subscribers", True)
 
         self._template_env: Environment | None = None
         self._template_name: str | None = None
@@ -76,6 +78,12 @@ class RosGraphExport(Node):
         )
         self.export_on_startup: bool = self.get_parameter("export_on_startup").get_parameter_value().bool_value
         self.include_hidden_entities: bool = self.get_parameter("include_hidden_entities").get_parameter_value().bool_value
+        self.ignore_topics_without_publishers: bool = (
+            self.get_parameter("ignore_topics_without_publishers").get_parameter_value().bool_value
+        )
+        self.ignore_topics_without_subscribers: bool = (
+            self.get_parameter("ignore_topics_without_subscribers").get_parameter_value().bool_value
+        )
 
         self.output_directory.mkdir(parents=True, exist_ok=True)
 
@@ -123,6 +131,10 @@ class RosGraphExport(Node):
                 self.export_on_startup = bool(param.value)
             elif param.name == "include_hidden_entities":
                 self.include_hidden_entities = bool(param.value)
+            elif param.name == "ignore_topics_without_publishers":
+                self.ignore_topics_without_publishers = bool(param.value)
+            elif param.name == "ignore_topics_without_subscribers":
+                self.ignore_topics_without_subscribers = bool(param.value)
 
         return result
 
@@ -299,43 +311,45 @@ class RosGraphExport(Node):
                                 target=subscriber_id,
                                 topic_name=topic_name,
                                 topic_type=topic_type,
-                                is_virtual=False,
+                                edge_type="normal",
                             )
                         )
             elif publishers and not subscribers:
-                dummy = self._ensure_dummy_node(
-                    node_descriptors,
-                    dummy_nodes,
-                    topic_name,
-                    role="subscriber",
-                )
-                for publisher_id in publishers:
-                    edges.append(
-                        EdgeDescriptor(
-                            source=publisher_id,
-                            target=dummy.identifier,
-                            topic_name=topic_name,
-                            topic_type=topic_type,
-                            is_virtual=True,
-                        )
+                if not self.ignore_topics_without_subscribers:
+                    dummy = self._ensure_dummy_node(
+                        node_descriptors,
+                        dummy_nodes,
+                        topic_name,
+                        role="subscriber",
                     )
+                    for publisher_id in publishers:
+                        edges.append(
+                            EdgeDescriptor(
+                                source=publisher_id,
+                                target=dummy.identifier,
+                                topic_name=topic_name,
+                                topic_type=topic_type,
+                                edge_type="missing_subscribers",
+                            )
+                        )
             elif subscribers and not publishers:
-                dummy = self._ensure_dummy_node(
-                    node_descriptors,
-                    dummy_nodes,
-                    topic_name,
-                    role="publisher",
-                )
-                for subscriber_id in subscribers:
-                    edges.append(
-                        EdgeDescriptor(
-                            source=dummy.identifier,
-                            target=subscriber_id,
-                            topic_name=topic_name,
-                            topic_type=topic_type,
-                            is_virtual=True,
-                        )
+                if not self.ignore_topics_without_publishers:
+                    dummy = self._ensure_dummy_node(
+                        node_descriptors,
+                        dummy_nodes,
+                        topic_name,
+                        role="publisher",
                     )
+                    for subscriber_id in subscribers:
+                        edges.append(
+                            EdgeDescriptor(
+                                source=dummy.identifier,
+                                target=subscriber_id,
+                                topic_name=topic_name,
+                                topic_type=topic_type,
+                                edge_type="missing_publishers",
+                            )
+                        )
 
         topic_names = sorted(topic_details.keys())
         container_list = self._order_containers(containers)

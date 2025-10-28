@@ -6,3 +6,5 @@
     export_interval_seconds: 30.0
     export_on_startup: true
     include_hidden_entities: false
+    ignore_topics_without_publishers: true
+    ignore_topics_without_subscribers: true
