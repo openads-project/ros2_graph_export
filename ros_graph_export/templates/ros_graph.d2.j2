@@ -4,20 +4,14 @@
 
 direction: right
 
-vars: {
-  d2-legend: {
-    style.fill: "#f8f9ff"
-    style.font-color: "#334155"
-    style.border-radius: 8
-    nodes: "Nodes: {{ node_count }}" {
-      style.fill: "#1f77b4"
-      style.font-color: white
-      style.border-radius: 6
-    }
-    nodes -> nodes: "Topics: {{ topic_count }}" {
-      style.stroke: "#17becf"
-    }
-  }
+legend: Legend {
+  style.fill: "#f8f9ff"
+  style.font-color: "#334155"
+  style.border-radius: 8
+  Nodes: "Nodes: {{ node_count }}"
+  Topics: "Topics: {{ topic_count }}"
+  Real: "Teal edge = publisher to subscriber link"
+  Virtual: "Coral edge = missing publisher or subscriber"
 }
 
 *.style.border-radius: 6
@@ -25,7 +19,15 @@ vars: {
 {%- if node_count == 0 %}
 empty: "No active ROS nodes detected"
 {%- else %}
-{%- for node in nodes if not node.group_identifier %}
+{%- for container in containers %}
+{{ container.identifier }}: "{{ container.label | replace('"', '\\"') }}" {
+  style.fill: "#f0f4ff"
+  style.font-color: "#1f77b4"
+  style.border-radius: 8
+}
+{%- endfor %}
+
+{%- for node in nodes %}
 {{ node.identifier }}: "{{ node.label | replace('"', '\\"') }}" {
   {%- if node.is_dummy %}
   style.opacity: 0
@@ -37,21 +39,6 @@ empty: "No active ROS nodes detected"
   style.font-color: white
   style.border-radius: 6
   {%- endif %}
-}
-{%- endfor %}
-
-{%- for group in groups %}
-{{ group.identifier }}: "{{ group.label | replace('"', '\\"') }}" {
-  style.fill: "#f0f4ff"
-  style.font-color: "#1f77b4"
-  style.border-radius: 8
-  {%- for node in group.nodes %}
-  {{ node.local_identifier }}: "{{ node.label | replace('"', '\\"') }}" {
-    style.fill: "#1f77b4"
-    style.font-color: white
-    style.border-radius: 6
-  }
-  {%- endfor %}
 }
 {%- endfor %}
 

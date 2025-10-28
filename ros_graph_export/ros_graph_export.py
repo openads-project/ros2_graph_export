@@ -22,29 +22,16 @@ TRANSFORM_PREFIX = "transform_listener_impl_"
 @dataclass(frozen=True)
 class NodeDescriptor:
     identifier: str
-    local_identifier: str
-    name: str
+    label: str
     namespace: str
     is_dummy: bool = False
-    group_identifier: str | None = None
-    group_label: str | None = None
-
-    @property
-    def label(self) -> str:
-        if self.is_dummy:
-            return self.name
-        if self.group_identifier:
-            return self.name
-        if self.namespace and self.namespace != "/":
-            return f"{self.namespace}/{self.name}"
-        return self.name
 
 
 @dataclass(frozen=True)
-class NamespaceGroup:
+class ContainerDescriptor:
     identifier: str
     label: str
-    nodes: List[NodeDescriptor]
+    parent: str | None = None
 
 
 @dataclass(frozen=True)
@@ -197,7 +184,7 @@ class RosGraphExport(Node):
 
         self.get_logger().info("ROS graph export completed")
 
-    def _collect_graph(self) -> Tuple[List[NodeDescriptor], List[EdgeDescriptor], List[str], List[NamespaceGroup]]:
+    def _collect_graph(self) -> Tuple[List[NodeDescriptor], List[EdgeDescriptor], List[str], List[ContainerDescriptor]]:
         try:
             nodes = self.get_node_names_and_namespaces(include_hidden_nodes=self.include_hidden_entities)
         except TypeError:
@@ -224,6 +211,7 @@ class RosGraphExport(Node):
 
         node_descriptors: List[NodeDescriptor] = []
         node_lookup: Dict[Tuple[str, str], str] = {}
+        containers: Dict[str, ContainerDescriptor] = {}
 
         def node_priority(entry: Tuple[str, str]) -> Tuple[str, str, str]:
             name, namespace = entry
@@ -234,18 +222,25 @@ class RosGraphExport(Node):
 
         for index, (name, namespace) in enumerate(sorted(nodes, key=node_priority)):
             namespace = namespace or ""
-            stripped_ns = namespace.strip("/")
-            group_identifier: str | None = None
-            group_label: str | None = None
-            if stripped_ns:
-                first_segment = stripped_ns.split("/", 1)[0]
-                group_identifier = self._sanitize_identifier(first_segment)
-                group_label = f"/{first_segment}"
+            segments = [segment for segment in namespace.strip("/").split("/") if segment]
+
+            parent_identifier: str | None = None
+            for depth, segment in enumerate(segments):
+                sanitized_segment = self._sanitize_identifier(segment)
+                segment_identifier = f"ns_{sanitized_segment}"
+                container_identifier = f"{parent_identifier}.{segment_identifier}" if parent_identifier else segment_identifier
+                label = f"/{segment}" if depth == 0 else segment
+                if container_identifier not in containers:
+                    containers[container_identifier] = ContainerDescriptor(
+                        identifier=container_identifier,
+                        label=label,
+                        parent=parent_identifier,
+                    )
+                parent_identifier = container_identifier
 
             base_label = name or f"node_{index}"
             base_identifier = self._sanitize_identifier(base_label)
-
-            group_key = group_identifier
+            group_key = parent_identifier
             group_used = used_names.setdefault(group_key, set())
             unique_identifier = base_identifier
             counter = 1
@@ -254,21 +249,12 @@ class RosGraphExport(Node):
                 unique_identifier = f"{base_identifier}_{counter}"
             group_used.add(unique_identifier)
 
-            if group_identifier:
-                identifier = f"{group_identifier}.{unique_identifier}"
-                local_identifier = unique_identifier
-            else:
-                identifier = unique_identifier
-                local_identifier = unique_identifier
-
+            identifier = f"{parent_identifier}.{unique_identifier}" if parent_identifier else unique_identifier
             descriptor = NodeDescriptor(
                 identifier=identifier,
-                local_identifier=local_identifier,
-                name=name,
+                label=name or unique_identifier,
                 namespace=namespace,
                 is_dummy=False,
-                group_identifier=group_identifier,
-                group_label=group_label,
             )
             node_descriptors.append(descriptor)
             node_lookup[(namespace, name)] = identifier
@@ -352,8 +338,9 @@ class RosGraphExport(Node):
                     )
 
         topic_names = sorted(topic_details.keys())
-        groups = self._build_namespace_groups(node_descriptors)
-        return node_descriptors, edges, topic_names, groups
+        container_list = self._order_containers(containers)
+        node_descriptors.sort(key=lambda node: node.identifier)
+        return node_descriptors, edges, topic_names, container_list
 
     def _get_publishers_info(self, topic_name: str) -> List[TopicEndpointInfo]:
         try:
@@ -385,6 +372,10 @@ class RosGraphExport(Node):
             return False
         if any(segment.startswith(TRANSFORM_PREFIX) for segment in namespace_segments):
             return False
+        if name.startswith("launch_ros_"):
+            return False
+        if any(segment.startswith("launch_ros_") for segment in namespace_segments):
+            return False
         if name == "ros_graph_export":
             return False
 
@@ -395,6 +386,8 @@ class RosGraphExport(Node):
 
     def _should_include_topic(self, topic_name: str) -> bool:
         if topic_name in IGNORED_TOPICS:
+            return False
+        if topic_name.endswith("/transition_event"):
             return False
         if not self.include_hidden_entities and topic_name.startswith("_"):
             return False
@@ -408,26 +401,14 @@ class RosGraphExport(Node):
             safe = f"_{safe}"
         return safe
 
-    def _build_namespace_groups(self, nodes: Iterable[NodeDescriptor]) -> List[NamespaceGroup]:
-        groups: Dict[str, NamespaceGroup] = {}
+    def _order_containers(self, containers: Dict[str, ContainerDescriptor]) -> List[ContainerDescriptor]:
+        return sorted(
+            containers.values(),
+            key=lambda container: (self._container_depth(container.identifier), container.identifier),
+        )
 
-        for node in nodes:
-            if node.is_dummy or node.group_identifier is None or node.group_label is None:
-                continue
-
-            group = groups.get(node.group_identifier)
-            if group is None:
-                group = NamespaceGroup(identifier=node.group_identifier, label=node.group_label, nodes=[])
-                groups[node.group_identifier] = group
-            group.nodes.append(node)
-
-        ordered_groups = []
-        for identifier in sorted(groups.keys(), key=lambda ident: groups[ident].label.lower()):
-            group = groups[identifier]
-            group.nodes.sort(key=lambda n: n.label.lower())
-            ordered_groups.append(group)
-
-        return ordered_groups
+    def _container_depth(self, identifier: str) -> int:
+        return identifier.count(".")
 
     def _ensure_dummy_node(
         self,
@@ -444,8 +425,7 @@ class RosGraphExport(Node):
         suffix = "no publishers" if role == "publisher" else "no subscribers"
         dummy = NodeDescriptor(
             identifier=identifier,
-            local_identifier=identifier,
-            name=f"{topic_name} ({suffix})",
+            label=f"{topic_name} ({suffix})",
             namespace="",
             is_dummy=True,
         )
@@ -462,8 +442,8 @@ class RosGraphExport(Node):
             seen.add(signature)
             yield info
 
-    def _render_d2(self, graph_data: Tuple[List[NodeDescriptor], List[EdgeDescriptor], List[str], List[NamespaceGroup]], timestamp: str) -> None:
-        nodes, edges, topic_names, groups = graph_data
+    def _render_d2(self, graph_data: Tuple[List[NodeDescriptor], List[EdgeDescriptor], List[str], List[ContainerDescriptor]], timestamp: str) -> None:
+        nodes, edges, topic_names, containers = graph_data
         environment = self._load_template()
 
         try:
@@ -479,7 +459,7 @@ class RosGraphExport(Node):
             "nodes": nodes,
             "edges": edges,
             "topic_names": topic_names,
-            "groups": groups,
+            "containers": containers,
         }
 
         rendered = template.render(context)
