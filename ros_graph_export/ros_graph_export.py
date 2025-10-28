@@ -55,12 +55,8 @@ class RosGraphExport(Node):
     def __init__(self) -> None:
         super().__init__("ros_graph_export")
 
-        self.declare_parameter("output_directory", str(Path.home() / "ros_graph_exports"))
-        self.declare_parameter("d2_template_path", "")
-        self.declare_parameter("d2_output_filename", "ros_graph.d2")
-        self.declare_parameter("export_interval_seconds", 30.0)
-        self.declare_parameter("export_on_startup", True)
-        self.declare_parameter("include_hidden_entities", False)
+        self.declare_parameter("output_path", str(Path.home() / ".ros" / "ros_graph.d2"))
+        self.declare_parameter("export_interval_seconds", 5.0)
         self.declare_parameter("ignore_topics_without_publishers", True)
         self.declare_parameter("ignore_topics_without_subscribers", True)
 
@@ -68,24 +64,18 @@ class RosGraphExport(Node):
         self._template_name: str | None = None
         self._template_directory: Path | None = None
 
-        self.output_directory: Path = Path(self.get_parameter("output_directory").get_parameter_value().string_value).expanduser()
-        self.d2_template_path: Path | None = self._resolve_template_path(
-            self.get_parameter("d2_template_path").get_parameter_value().string_value
-        )
-        self.d2_output_filename: str = self.get_parameter("d2_output_filename").get_parameter_value().string_value
+        self.output_path: Path = Path(self.get_parameter("output_path").get_parameter_value().string_value).expanduser()
+        self.d2_template_path: Path = self._resolve_template_path()
         self.export_interval: float = (
             self.get_parameter("export_interval_seconds").get_parameter_value().double_value
         )
-        self.export_on_startup: bool = self.get_parameter("export_on_startup").get_parameter_value().bool_value
-        self.include_hidden_entities: bool = self.get_parameter("include_hidden_entities").get_parameter_value().bool_value
+        self.output_path.parent.mkdir(parents=True, exist_ok=True)
         self.ignore_topics_without_publishers: bool = (
             self.get_parameter("ignore_topics_without_publishers").get_parameter_value().bool_value
         )
         self.ignore_topics_without_subscribers: bool = (
             self.get_parameter("ignore_topics_without_subscribers").get_parameter_value().bool_value
         )
-
-        self.output_directory.mkdir(parents=True, exist_ok=True)
 
         # Prepare parameter change callback for runtime reconfiguration.
         self.add_on_set_parameters_callback(self._parameters_callback)
@@ -98,22 +88,16 @@ class RosGraphExport(Node):
             self._export_timer = self.create_timer(self.export_interval, self._perform_export)
             self.get_logger().info(f"Scheduled periodic graph export every {self.export_interval:.1f} s")
 
-        if self.export_on_startup:
-            self._perform_export()
+        self._perform_export()
 
     def _parameters_callback(self, params: List[Parameter]) -> SetParametersResult:
         result = SetParametersResult(successful=True)
 
         for param in params:
-            if param.name == "output_directory":
-                self.output_directory = Path(param.value).expanduser()
-                self.output_directory.mkdir(parents=True, exist_ok=True)
-                self.get_logger().info(f"Updated output directory to {self.output_directory}")
-            elif param.name == "d2_template_path":
-                self.d2_template_path = self._resolve_template_path(param.value)
-                self.get_logger().info(f"Using D2 template at {self._effective_template_path()}")
-            elif param.name == "d2_output_filename":
-                self.d2_output_filename = param.value
+            if param.name == "output_path":
+                self.output_path = Path(param.value).expanduser()
+                self.output_path.parent.mkdir(parents=True, exist_ok=True)
+                self.get_logger().info(f"Updated output path to {self.output_path}")
             elif param.name == "export_interval_seconds":
                 interval = float(param.value)
                 self.export_interval = interval
@@ -127,10 +111,6 @@ class RosGraphExport(Node):
                         self._export_timer.cancel()
                     self._export_timer = self.create_timer(interval, self._perform_export)
                     self.get_logger().info(f"Updated export interval to {interval:.1f} s")
-            elif param.name == "export_on_startup":
-                self.export_on_startup = bool(param.value)
-            elif param.name == "include_hidden_entities":
-                self.include_hidden_entities = bool(param.value)
             elif param.name == "ignore_topics_without_publishers":
                 self.ignore_topics_without_publishers = bool(param.value)
             elif param.name == "ignore_topics_without_subscribers":
@@ -138,13 +118,7 @@ class RosGraphExport(Node):
 
         return result
 
-    def _resolve_template_path(self, requested_path: str) -> Path | None:
-        if requested_path.strip():
-            candidate = Path(requested_path).expanduser()
-            if candidate.exists():
-                return candidate
-            self.get_logger().warn(f"Requested D2 template '{candidate}' not found, using default template")
-
+    def _resolve_template_path(self) -> Path:
         package_template = Path(__file__).parent / "templates" / "ros_graph.d2.j2"
         if package_template.exists():
             return package_template
@@ -159,11 +133,8 @@ class RosGraphExport(Node):
         self.get_logger().error("Default D2 template missing from package resources")
         return package_template
 
-    def _effective_template_path(self) -> Path:
-        return self.d2_template_path if self.d2_template_path is not None else Path()
-
     def _load_template(self) -> Environment:
-        template_path = self._effective_template_path()
+        template_path = self.d2_template_path
         template_dir = template_path.parent
         template_name = template_path.name
 
@@ -197,17 +168,9 @@ class RosGraphExport(Node):
         self.get_logger().info("ROS graph export completed")
 
     def _collect_graph(self) -> Tuple[List[NodeDescriptor], List[EdgeDescriptor], List[str], List[ContainerDescriptor]]:
-        try:
-            nodes = self.get_node_names_and_namespaces(include_hidden_nodes=self.include_hidden_entities)
-        except TypeError:
-            nodes = self.get_node_names_and_namespaces()
+        nodes = self.get_node_names_and_namespaces()
 
-        try:
-            topics = self.get_topic_names_and_types(
-                no_demangle=False, include_hidden_topics=self.include_hidden_entities
-            )
-        except TypeError:
-            topics = self.get_topic_names_and_types(no_demangle=False)
+        topics = self.get_topic_names_and_types(no_demangle=False)
 
         nodes = [
             (name, namespace)
@@ -357,17 +320,11 @@ class RosGraphExport(Node):
         return node_descriptors, edges, topic_names, container_list
 
     def _get_publishers_info(self, topic_name: str) -> List[TopicEndpointInfo]:
-        try:
-            infos = self.get_publishers_info_by_topic(topic_name, include_hidden_nodes=self.include_hidden_entities)
-        except TypeError:
-            infos = self.get_publishers_info_by_topic(topic_name)
+        infos = self.get_publishers_info_by_topic(topic_name)
         return self._filter_hidden_endpoints(infos)
 
     def _get_subscriptions_info(self, topic_name: str) -> List[TopicEndpointInfo]:
-        try:
-            infos = self.get_subscriptions_info_by_topic(topic_name, include_hidden_nodes=self.include_hidden_entities)
-        except TypeError:
-            infos = self.get_subscriptions_info_by_topic(topic_name)
+        infos = self.get_subscriptions_info_by_topic(topic_name)
         return self._filter_hidden_endpoints(infos)
 
     def _filter_hidden_endpoints(self, endpoints: Iterable[TopicEndpointInfo]) -> List[TopicEndpointInfo]:
@@ -393,7 +350,7 @@ class RosGraphExport(Node):
         if name == "ros_graph_export":
             return False
 
-        if not self.include_hidden_entities and name.startswith("_"):
+        if name.startswith("_"):
             return False
 
         return True
@@ -403,7 +360,7 @@ class RosGraphExport(Node):
             return False
         if topic_name.endswith("/transition_event"):
             return False
-        if not self.include_hidden_entities and topic_name.startswith("_"):
+        if topic_name.startswith("_"):
             return False
         return True
 
@@ -463,7 +420,7 @@ class RosGraphExport(Node):
         try:
             template = environment.get_template(self._template_name or "")
         except TemplateNotFound as exc:
-            raise RuntimeError(f"Unable to load D2 template '{self._effective_template_path()}': {exc}") from exc
+            raise RuntimeError(f"Unable to load D2 template '{self.d2_template_path}': {exc}") from exc
 
         context = {
             "generated_at": timestamp,
@@ -478,9 +435,8 @@ class RosGraphExport(Node):
 
         rendered = template.render(context)
 
-        output_path = self.output_directory / self.d2_output_filename
-        output_path.write_text(rendered, encoding="utf-8")
-        self.get_logger().info(f"Wrote D2 graph to {output_path}")
+        self.output_path.write_text(rendered, encoding="utf-8")
+        self.get_logger().info(f"Wrote D2 graph to {self.output_path}")
 
 def main() -> None:
     rclpy.init()
