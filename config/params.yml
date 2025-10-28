@@ -3,7 +3,6 @@
     output_directory: "/docker-ros/ws/src/target/ros_graph_exports"
     d2_template_path: ""
     d2_output_filename: "ros_graph.d2"
-    vector_output_filename: "ros_graph.svg"
     export_interval_seconds: 30.0
     export_on_startup: true
     include_hidden_entities: false

@@ -1,16 +1,11 @@
 from __future__ import annotations
 
-import math
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 import re
 
-import matplotlib
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import rclpy
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 from rcl_interfaces.msg import SetParametersResult
@@ -68,7 +63,7 @@ class EdgeDescriptor:
 
 
 class RosGraphExport(Node):
-    """Exports a live ROS graph description as D2 and SVG files."""
+    """Exports a live ROS graph description as a D2 diagram."""
 
     def __init__(self) -> None:
         super().__init__("ros_graph_export")
@@ -76,7 +71,6 @@ class RosGraphExport(Node):
         self.declare_parameter("output_directory", str(Path.home() / "ros_graph_exports"))
         self.declare_parameter("d2_template_path", "")
         self.declare_parameter("d2_output_filename", "ros_graph.d2")
-        self.declare_parameter("vector_output_filename", "ros_graph.svg")
         self.declare_parameter("export_interval_seconds", 30.0)
         self.declare_parameter("export_on_startup", True)
         self.declare_parameter("include_hidden_entities", False)
@@ -90,7 +84,6 @@ class RosGraphExport(Node):
             self.get_parameter("d2_template_path").get_parameter_value().string_value
         )
         self.d2_output_filename: str = self.get_parameter("d2_output_filename").get_parameter_value().string_value
-        self.vector_output_filename: str = self.get_parameter("vector_output_filename").get_parameter_value().string_value
         self.export_interval: float = (
             self.get_parameter("export_interval_seconds").get_parameter_value().double_value
         )
@@ -126,8 +119,6 @@ class RosGraphExport(Node):
                 self.get_logger().info(f"Using D2 template at {self._effective_template_path()}")
             elif param.name == "d2_output_filename":
                 self.d2_output_filename = param.value
-            elif param.name == "vector_output_filename":
-                self.vector_output_filename = param.value
             elif param.name == "export_interval_seconds":
                 interval = float(param.value)
                 self.export_interval = interval
@@ -203,7 +194,6 @@ class RosGraphExport(Node):
         graph = self._collect_graph()
 
         self._render_d2(graph, timestamp)
-        self._render_svg(graph, timestamp)
 
         self.get_logger().info("ROS graph export completed")
 
@@ -497,80 +487,6 @@ class RosGraphExport(Node):
         output_path = self.output_directory / self.d2_output_filename
         output_path.write_text(rendered, encoding="utf-8")
         self.get_logger().info(f"Wrote D2 graph to {output_path}")
-
-    def _render_svg(self, graph_data: Tuple[List[NodeDescriptor], List[EdgeDescriptor], List[str], List[NamespaceGroup]], timestamp: str) -> None:
-        nodes, edges, _, _ = graph_data
-        positions: Dict[str, Tuple[float, float]] = {}
-
-        real_nodes = [node for node in nodes if not node.is_dummy]
-        dummy_nodes = [node for node in nodes if node.is_dummy]
-
-        real_count = max(len(real_nodes), 1)
-        dummy_count = max(len(dummy_nodes), 1)
-
-        for index, node in enumerate(real_nodes):
-            angle = 2.0 * math.pi * index / real_count
-            positions[node.identifier] = (math.cos(angle), math.sin(angle))
-
-        for index, node in enumerate(dummy_nodes):
-            angle = 2.0 * math.pi * index / dummy_count
-            positions[node.identifier] = (0.5 * math.cos(angle), 0.5 * math.sin(angle))
-
-        figure, axis = plt.subplots(figsize=(10, 10))
-
-        axis.set_title(f"ROS Graph ({timestamp})", fontsize=12)
-        axis.axis("off")
-
-        if not nodes:
-            axis.text(
-                0.5,
-                0.5,
-                "No active ROS nodes or topics detected",
-                transform=axis.transAxes,
-                ha="center",
-                va="center",
-                fontsize=12,
-                color="#333333",
-            )
-
-        for node in real_nodes:
-            x, y = positions[node.identifier]
-            axis.scatter(x, y, s=400, color="#1f77b4", edgecolors="white", linewidths=1.5, zorder=3)
-            axis.text(x, y, node.label, ha="center", va="center", fontsize=8, color="white", zorder=4, wrap=True)
-
-        for edge in edges:
-            start = positions.get(edge.source)
-            end = positions.get(edge.target)
-            if start is None or end is None:
-                continue
-            color = "#ff9896" if edge.is_virtual else "#17becf"
-            axis.annotate(
-                "",
-                xy=end,
-                xytext=start,
-                arrowprops=dict(arrowstyle="->", color=color, lw=1.5),
-                zorder=2,
-            )
-            label_pos = ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0)
-            axis.text(
-                label_pos[0],
-                label_pos[1],
-                edge.label.replace("\\n", "\n"),
-                fontsize=6,
-                color="#333333",
-                zorder=5,
-                ha="center",
-            )
-
-        axis.set_xlim(-1.4, 1.4)
-        axis.set_ylim(-1.4, 1.4)
-
-        output_path = self.output_directory / self.vector_output_filename
-        figure.savefig(output_path, format="svg")
-        plt.close(figure)
-
-        self.get_logger().info(f"Wrote SVG graph to {output_path}")
-
 
 def main() -> None:
     rclpy.init()

@@ -19,7 +19,7 @@ setup(
                               'config'), glob('config/*')),
                 (os.path.join('share', package_name,
                               'templates'), glob('ros_graph_export/templates/*'))],
-    install_requires=['setuptools', 'Jinja2', 'matplotlib'],
+    install_requires=['setuptools', 'Jinja2'],
     zip_safe=True,
     maintainer='root',
     maintainer_email='root@todo.todo',
