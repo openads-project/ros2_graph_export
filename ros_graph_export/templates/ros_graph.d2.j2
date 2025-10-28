@@ -4,15 +4,20 @@
 
 direction: right
 
-legend: Legend {
-  style.fill: "#f8f9ff"
-  style.font-color: "#334155"
-  style.border-radius: 8
-  Nodes: "Nodes: {{ node_count }}"
-  Topics: "Topics: {{ topic_count }}"
-  Real: "Teal edge = publisher to subscriber link"
-  MissingSubscribers: "Orange edge = no subscribers observed"
-  MissingPublishers: "Red edge = no publishers observed"
+vars: {
+  d2-legend: {
+    style.fill: "#f8f9ff"
+    style.font-color: "#334155"
+    style.border-radius: 8
+    nodes: "Nodes: {{ node_count }}" {
+      style.fill: "#1f77b4"
+      style.font-color: white
+      style.border-radius: 6
+    }
+    nodes -> nodes: "Topics: {{ edge_count }}" {
+      style.stroke: "#17becf"
+    }
+  }
 }
 
 *.style.border-radius: 6
