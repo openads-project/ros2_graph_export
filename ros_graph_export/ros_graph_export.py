@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
+import re
 
 import matplotlib
 
@@ -19,32 +20,36 @@ from rclpy.topic_endpoint_info import TopicEndpointInfo
 from std_srvs.srv import Trigger
 from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
 
+IGNORED_TOPICS = {"/parameter_events", "/rosout"}
+TRANSFORM_PREFIX = "transform_listener_impl_"
+
 
 @dataclass(frozen=True)
 class NodeDescriptor:
     identifier: str
+    local_identifier: str
     name: str
     namespace: str
+    is_dummy: bool = False
+    group_identifier: str | None = None
+    group_label: str | None = None
 
     @property
     def label(self) -> str:
+        if self.is_dummy:
+            return self.name
+        if self.group_identifier:
+            return self.name
         if self.namespace and self.namespace != "/":
             return f"{self.namespace}/{self.name}"
         return self.name
 
 
 @dataclass(frozen=True)
-class TopicDescriptor:
+class NamespaceGroup:
     identifier: str
-    name: str
-    types: Tuple[str, ...]
-
-    @property
-    def label(self) -> str:
-        if not self.types:
-            return self.name
-        type_suffix = "\\n".join(sorted(self.types))
-        return f"{self.name}\\n{type_suffix}"
+    label: str
+    nodes: List[NodeDescriptor]
 
 
 @dataclass(frozen=True)
@@ -53,12 +58,13 @@ class EdgeDescriptor:
     target: str
     topic_name: str
     topic_type: str
-    direction: str  # "publish" or "subscribe"
+    is_virtual: bool = False
 
     @property
     def label(self) -> str:
-        action = "pub" if self.direction == "publish" else "sub"
-        return f"{action}: {self.topic_type}"
+        if self.topic_type:
+            return f"{self.topic_name}\\n{self.topic_type}"
+        return self.topic_name
 
 
 class RosGraphExport(Node):
@@ -201,7 +207,7 @@ class RosGraphExport(Node):
 
         self.get_logger().info("ROS graph export completed")
 
-    def _collect_graph(self) -> Tuple[List[NodeDescriptor], List[TopicDescriptor], List[EdgeDescriptor]]:
+    def _collect_graph(self) -> Tuple[List[NodeDescriptor], List[EdgeDescriptor], List[str], List[NamespaceGroup]]:
         try:
             nodes = self.get_node_names_and_namespaces(include_hidden_nodes=self.include_hidden_entities)
         except TypeError:
@@ -214,54 +220,150 @@ class RosGraphExport(Node):
         except TypeError:
             topics = self.get_topic_names_and_types(no_demangle=False)
 
-        if not self.include_hidden_entities:
-            nodes = [(name, namespace) for name, namespace in nodes if not name.startswith("_")]
-            topics = [(name, types) for name, types in topics if not name.startswith("_")]
+        nodes = [
+            (name, namespace)
+            for name, namespace in nodes
+            if self._should_include_node(name, namespace)
+        ]
+
+        topics = [
+            (name, types)
+            for name, types in topics
+            if self._should_include_topic(name)
+        ]
 
         node_descriptors: List[NodeDescriptor] = []
         node_lookup: Dict[Tuple[str, str], str] = {}
-        for index, (name, namespace) in enumerate(sorted(nodes, key=lambda item: (item[1], item[0]))):
-            identifier = f"nodes.node_{index}"
-            node_descriptors.append(NodeDescriptor(identifier, name, namespace))
+
+        def node_priority(entry: Tuple[str, str]) -> Tuple[str, str, str]:
+            name, namespace = entry
+            canonical_ns = namespace if namespace else "/"
+            return (canonical_ns, name, namespace)
+
+        used_names: Dict[str | None, set[str]] = {}
+
+        for index, (name, namespace) in enumerate(sorted(nodes, key=node_priority)):
+            namespace = namespace or ""
+            stripped_ns = namespace.strip("/")
+            group_identifier: str | None = None
+            group_label: str | None = None
+            if stripped_ns:
+                first_segment = stripped_ns.split("/", 1)[0]
+                group_identifier = self._sanitize_identifier(first_segment)
+                group_label = f"/{first_segment}"
+
+            base_label = name or f"node_{index}"
+            base_identifier = self._sanitize_identifier(base_label)
+
+            group_key = group_identifier
+            group_used = used_names.setdefault(group_key, set())
+            unique_identifier = base_identifier
+            counter = 1
+            while unique_identifier in group_used:
+                counter += 1
+                unique_identifier = f"{base_identifier}_{counter}"
+            group_used.add(unique_identifier)
+
+            if group_identifier:
+                identifier = f"{group_identifier}.{unique_identifier}"
+                local_identifier = unique_identifier
+            else:
+                identifier = unique_identifier
+                local_identifier = unique_identifier
+
+            descriptor = NodeDescriptor(
+                identifier=identifier,
+                local_identifier=local_identifier,
+                name=name,
+                namespace=namespace,
+                is_dummy=False,
+                group_identifier=group_identifier,
+                group_label=group_label,
+            )
+            node_descriptors.append(descriptor)
             node_lookup[(namespace, name)] = identifier
 
-        topic_descriptors: List[TopicDescriptor] = []
-        topic_lookup: Dict[str, str] = {}
-        for index, (topic_name, types) in enumerate(sorted(topics, key=lambda item: item[0])):
-            identifier = f"topics.topic_{index}"
-            topic_descriptors.append(TopicDescriptor(identifier, topic_name, tuple(sorted(types))))
-            topic_lookup[topic_name] = identifier
-
+        topic_details: Dict[str, Dict[str, set]] = {}
         edges: List[EdgeDescriptor] = []
+        dummy_nodes: Dict[Tuple[str, str], NodeDescriptor] = {}
+
         for topic_name, types in topics:
+            topic_types = set(types)
+            details = topic_details.setdefault(topic_name, {"types": topic_types, "publishers": set(), "subscribers": set()})
+            details["types"].update(topic_types)
+
             for publisher in self._unique_endpoints(self._get_publishers_info(topic_name)):
                 key = (publisher.node_namespace, publisher.node_name)
                 if key not in node_lookup:
                     continue
-                edges.append(
-                    EdgeDescriptor(
-                        source=node_lookup[key],
-                        target=topic_lookup[topic_name],
-                        topic_name=topic_name,
-                        topic_type=publisher.topic_type or (types[0] if types else ""),
-                        direction="publish",
-                    )
-                )
+                details["publishers"].add(node_lookup[key])
+                if publisher.topic_type:
+                    details["types"].add(publisher.topic_type)
+
             for subscriber in self._unique_endpoints(self._get_subscriptions_info(topic_name)):
                 key = (subscriber.node_namespace, subscriber.node_name)
                 if key not in node_lookup:
                     continue
-                edges.append(
-                    EdgeDescriptor(
-                        source=topic_lookup[topic_name],
-                        target=node_lookup[key],
-                        topic_name=topic_name,
-                        topic_type=subscriber.topic_type or (types[0] if types else ""),
-                        direction="subscribe",
-                    )
-                )
+                details["subscribers"].add(node_lookup[key])
+                if subscriber.topic_type:
+                    details["types"].add(subscriber.topic_type)
 
-        return node_descriptors, topic_descriptors, edges
+        for topic_name, details in sorted(topic_details.items()):
+            publishers: set[str] = details["publishers"]
+            subscribers: set[str] = details["subscribers"]
+            topic_types: set[str] = details["types"]
+            topic_type = next((t for t in sorted(topic_types) if t), "")
+
+            if publishers and subscribers:
+                for publisher_id in publishers:
+                    for subscriber_id in subscribers:
+                        edges.append(
+                            EdgeDescriptor(
+                                source=publisher_id,
+                                target=subscriber_id,
+                                topic_name=topic_name,
+                                topic_type=topic_type,
+                                is_virtual=False,
+                            )
+                        )
+            elif publishers and not subscribers:
+                dummy = self._ensure_dummy_node(
+                    node_descriptors,
+                    dummy_nodes,
+                    topic_name,
+                    role="subscriber",
+                )
+                for publisher_id in publishers:
+                    edges.append(
+                        EdgeDescriptor(
+                            source=publisher_id,
+                            target=dummy.identifier,
+                            topic_name=topic_name,
+                            topic_type=topic_type,
+                            is_virtual=True,
+                        )
+                    )
+            elif subscribers and not publishers:
+                dummy = self._ensure_dummy_node(
+                    node_descriptors,
+                    dummy_nodes,
+                    topic_name,
+                    role="publisher",
+                )
+                for subscriber_id in subscribers:
+                    edges.append(
+                        EdgeDescriptor(
+                            source=dummy.identifier,
+                            target=subscriber_id,
+                            topic_name=topic_name,
+                            topic_type=topic_type,
+                            is_virtual=True,
+                        )
+                    )
+
+        topic_names = sorted(topic_details.keys())
+        groups = self._build_namespace_groups(node_descriptors)
+        return node_descriptors, edges, topic_names, groups
 
     def _get_publishers_info(self, topic_name: str) -> List[TopicEndpointInfo]:
         try:
@@ -278,18 +380,88 @@ class RosGraphExport(Node):
         return self._filter_hidden_endpoints(infos)
 
     def _filter_hidden_endpoints(self, endpoints: Iterable[TopicEndpointInfo]) -> List[TopicEndpointInfo]:
-        if self.include_hidden_entities:
-            return list(endpoints)
-
         filtered: List[TopicEndpointInfo] = []
         for info in endpoints:
-            if info.node_name.startswith("_"):
-                continue
-            namespace_tail = info.node_namespace.split("/")[-1] if info.node_namespace else ""
-            if namespace_tail.startswith("_"):
+            if not self._should_include_node(info.node_name, info.node_namespace):
                 continue
             filtered.append(info)
         return filtered
+
+    def _should_include_node(self, name: str, namespace: str) -> bool:
+        namespace = namespace or ""
+        namespace_segments = [segment for segment in namespace.split("/") if segment]
+
+        if name.startswith(TRANSFORM_PREFIX) or TRANSFORM_PREFIX in name:
+            return False
+        if any(segment.startswith(TRANSFORM_PREFIX) for segment in namespace_segments):
+            return False
+        if name == "ros_graph_export":
+            return False
+
+        if not self.include_hidden_entities and name.startswith("_"):
+            return False
+
+        return True
+
+    def _should_include_topic(self, topic_name: str) -> bool:
+        if topic_name in IGNORED_TOPICS:
+            return False
+        if not self.include_hidden_entities and topic_name.startswith("_"):
+            return False
+        return True
+
+    def _sanitize_identifier(self, value: str) -> str:
+        safe = re.sub(r"[^0-9a-zA-Z_]+", "_", value)
+        if not safe:
+            safe = "group"
+        if safe[0].isdigit():
+            safe = f"_{safe}"
+        return safe
+
+    def _build_namespace_groups(self, nodes: Iterable[NodeDescriptor]) -> List[NamespaceGroup]:
+        groups: Dict[str, NamespaceGroup] = {}
+
+        for node in nodes:
+            if node.is_dummy or node.group_identifier is None or node.group_label is None:
+                continue
+
+            group = groups.get(node.group_identifier)
+            if group is None:
+                group = NamespaceGroup(identifier=node.group_identifier, label=node.group_label, nodes=[])
+                groups[node.group_identifier] = group
+            group.nodes.append(node)
+
+        ordered_groups = []
+        for identifier in sorted(groups.keys(), key=lambda ident: groups[ident].label.lower()):
+            group = groups[identifier]
+            group.nodes.sort(key=lambda n: n.label.lower())
+            ordered_groups.append(group)
+
+        return ordered_groups
+
+    def _ensure_dummy_node(
+        self,
+        node_descriptors: List[NodeDescriptor],
+        dummy_nodes: Dict[Tuple[str, str], NodeDescriptor],
+        topic_name: str,
+        role: str,
+    ) -> NodeDescriptor:
+        key = (topic_name, role)
+        if key in dummy_nodes:
+            return dummy_nodes[key]
+
+        identifier = f"ghost_{role}_{len(dummy_nodes)}"
+        suffix = "no publishers" if role == "publisher" else "no subscribers"
+        dummy = NodeDescriptor(
+            identifier=identifier,
+            local_identifier=identifier,
+            name=f"{topic_name} ({suffix})",
+            namespace="",
+            is_dummy=True,
+        )
+        node_descriptors.append(dummy)
+        dummy_nodes[key] = dummy
+        return dummy
 
     def _unique_endpoints(self, endpoints: Iterable[TopicEndpointInfo]) -> Iterable[TopicEndpointInfo]:
         seen = set()
@@ -300,8 +472,8 @@ class RosGraphExport(Node):
             seen.add(signature)
             yield info
 
-    def _render_d2(self, graph_data: Tuple[List[NodeDescriptor], List[TopicDescriptor], List[EdgeDescriptor]], timestamp: str) -> None:
-        nodes, topics, edges = graph_data
+    def _render_d2(self, graph_data: Tuple[List[NodeDescriptor], List[EdgeDescriptor], List[str], List[NamespaceGroup]], timestamp: str) -> None:
+        nodes, edges, topic_names, groups = graph_data
         environment = self._load_template()
 
         try:
@@ -312,11 +484,12 @@ class RosGraphExport(Node):
         context = {
             "generated_at": timestamp,
             "node_count": len(nodes),
-            "topic_count": len(topics),
+            "topic_count": len(topic_names),
             "edge_count": len(edges),
             "nodes": nodes,
-            "topics": topics,
             "edges": edges,
+            "topic_names": topic_names,
+            "groups": groups,
         }
 
         rendered = template.render(context)
@@ -325,27 +498,30 @@ class RosGraphExport(Node):
         output_path.write_text(rendered, encoding="utf-8")
         self.get_logger().info(f"Wrote D2 graph to {output_path}")
 
-    def _render_svg(self, graph_data: Tuple[List[NodeDescriptor], List[TopicDescriptor], List[EdgeDescriptor]], timestamp: str) -> None:
-        nodes, topics, edges = graph_data
+    def _render_svg(self, graph_data: Tuple[List[NodeDescriptor], List[EdgeDescriptor], List[str], List[NamespaceGroup]], timestamp: str) -> None:
+        nodes, edges, _, _ = graph_data
         positions: Dict[str, Tuple[float, float]] = {}
 
-        node_count = max(len(nodes), 1)
-        topic_count = max(len(topics), 1)
+        real_nodes = [node for node in nodes if not node.is_dummy]
+        dummy_nodes = [node for node in nodes if node.is_dummy]
 
-        for index, node in enumerate(nodes):
-            angle = 2.0 * math.pi * index / node_count
+        real_count = max(len(real_nodes), 1)
+        dummy_count = max(len(dummy_nodes), 1)
+
+        for index, node in enumerate(real_nodes):
+            angle = 2.0 * math.pi * index / real_count
             positions[node.identifier] = (math.cos(angle), math.sin(angle))
 
-        for index, topic in enumerate(topics):
-            angle = 2.0 * math.pi * index / topic_count
-            positions[topic.identifier] = (0.55 * math.cos(angle), 0.55 * math.sin(angle))
+        for index, node in enumerate(dummy_nodes):
+            angle = 2.0 * math.pi * index / dummy_count
+            positions[node.identifier] = (0.5 * math.cos(angle), 0.5 * math.sin(angle))
 
         figure, axis = plt.subplots(figsize=(10, 10))
 
         axis.set_title(f"ROS Graph ({timestamp})", fontsize=12)
         axis.axis("off")
 
-        if not nodes and not topics:
+        if not nodes:
             axis.text(
                 0.5,
                 0.5,
@@ -357,22 +533,17 @@ class RosGraphExport(Node):
                 color="#333333",
             )
 
-        for node in nodes:
+        for node in real_nodes:
             x, y = positions[node.identifier]
             axis.scatter(x, y, s=400, color="#1f77b4", edgecolors="white", linewidths=1.5, zorder=3)
             axis.text(x, y, node.label, ha="center", va="center", fontsize=8, color="white", zorder=4, wrap=True)
-
-        for topic in topics:
-            x, y = positions[topic.identifier]
-            axis.scatter(x, y, s=300, color="#ff7f0e", edgecolors="white", linewidths=1.5, zorder=3, marker="s")
-            axis.text(x, y, topic.label.replace("\\n", "\n"), ha="center", va="center", fontsize=7, color="white", zorder=4, wrap=True)
 
         for edge in edges:
             start = positions.get(edge.source)
             end = positions.get(edge.target)
             if start is None or end is None:
                 continue
-            color = "#17becf" if edge.direction == "publish" else "#bcbd22"
+            color = "#ff9896" if edge.is_virtual else "#17becf"
             axis.annotate(
                 "",
                 xy=end,
@@ -381,7 +552,15 @@ class RosGraphExport(Node):
                 zorder=2,
             )
             label_pos = ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0)
-            axis.text(label_pos[0], label_pos[1], edge.topic_name, fontsize=6, color="#333333", zorder=5, ha="center")
+            axis.text(
+                label_pos[0],
+                label_pos[1],
+                edge.label.replace("\\n", "\n"),
+                fontsize=6,
+                color="#333333",
+                zorder=5,
+                ha="center",
+            )
 
         axis.set_xlim(-1.4, 1.4)
         axis.set_ylim(-1.4, 1.4)

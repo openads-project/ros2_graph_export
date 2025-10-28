@@ -4,30 +4,48 @@
 
 direction: right
 
-nodes: Nodes {
+*.style.border-radius: 6
+
+{%- if node_count == 0 %}
+empty: "No active ROS nodes detected"
+{%- else %}
+{%- for node in nodes if not node.group_identifier %}
+{{ node.identifier }}: "{{ node.label | replace('"', '\\"') }}" {
+  {%- if node.is_dummy %}
+  style.opacity: 0
+  style.stroke-width: 0
+  style.fill: transparent
+  style.font-color: transparent
+  {%- else %}
   style.fill: "#1f77b4"
   style.font-color: white
   style.border-radius: 6
+  {%- endif %}
 }
-
-topics: Topics {
-  style.fill: "#ff7f0e"
-  style.font-color: white
-  style.border-radius: 6
-}
-
-{%- if node_count == 0 and topic_count == 0 %}
-empty: "No active ROS nodes or topics detected"
-{%- else %}
-{%- for node in nodes %}
-{{ node.identifier }}: "{{ node.label | replace('"', '\\"') }}"
 {%- endfor %}
 
-{%- for topic in topics %}
-{{ topic.identifier }}: "{{ topic.label | replace('"', '\\"') }}"
+{%- for group in groups %}
+{{ group.identifier }}: "{{ group.label | replace('"', '\\"') }}" {
+  style.fill: "#f0f4ff"
+  style.font-color: "#1f77b4"
+  style.border-radius: 8
+  {%- for node in group.nodes %}
+  {{ node.local_identifier }}: "{{ node.label | replace('"', '\\"') }}" {
+    style.fill: "#1f77b4"
+    style.font-color: white
+    style.border-radius: 6
+  }
+  {%- endfor %}
+}
 {%- endfor %}
 
 {%- for edge in edges %}
-{{ edge.source }} -> {{ edge.target }}: "{{ edge.label | replace('"', '\\"') }}"
+{{ edge.source }} -> {{ edge.target }}: "{{ edge.label | replace('"', '\\"') }}" {
+  {%- if edge.is_virtual %}
+  style.stroke: "#ff9896"
+  {%- else %}
+  style.stroke: "#17becf"
+  {%- endif %}
+}
 {%- endfor %}
 {%- endif %}
