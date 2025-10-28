@@ -49,11 +49,11 @@ class EdgeDescriptor:
         return self.topic_name
 
 
-class RosGraphExport(Node):
+class Ros2GraphExport(Node):
     """Exports a live ROS graph description as a D2 diagram."""
 
     def __init__(self) -> None:
-        super().__init__("ros_graph_export")
+        super().__init__("ros2_graph_export")
 
         self.declare_parameter("output_path", str(Path.home() / ".ros" / "ros_graph.d2"))
         self.declare_parameter("export_interval_seconds", 5.0)
@@ -124,7 +124,7 @@ class RosGraphExport(Node):
             return package_template
 
         try:
-            share_template = Path(get_package_share_directory("ros_graph_export")) / "templates" / "ros_graph.d2.j2"
+            share_template = Path(get_package_share_directory("ros2_graph_export")) / "templates" / "ros_graph.d2.j2"
             if share_template.exists():
                 return share_template
         except (PackageNotFoundError, ImportError):
@@ -347,7 +347,7 @@ class RosGraphExport(Node):
             return False
         if any(segment.startswith("launch_ros_") for segment in namespace_segments):
             return False
-        if name == "ros_graph_export":
+        if name == "ros2_graph_export":
             return False
 
         if name.startswith("_"):
@@ -440,7 +440,7 @@ class RosGraphExport(Node):
 
 def main() -> None:
     rclpy.init()
-    node = RosGraphExport()
+    node = Ros2GraphExport()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

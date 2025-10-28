@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
 
-  <name>ros_graph_export</name>
+  <name>ros2_graph_export</name>
   <version>0.0.0</version>
   <description>Exports ROS node and topic graphs</description>
 

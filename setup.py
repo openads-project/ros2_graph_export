@@ -2,13 +2,13 @@ import os
 from glob import glob
 from setuptools import setup
 
-package_name = 'ros_graph_export'
+package_name = 'ros2_graph_export'
 
 setup(
     name=package_name,
     version='0.0.0',
     packages=[package_name, f"{package_name}.templates"],
-    package_data={'ros_graph_export': ['templates/*.j2']},
+    package_data={'ros2_graph_export': ['templates/*.j2']},
     include_package_data=True,
     data_files=[('share/ament_index/resource_index/packages',
                  ['resource/' + package_name]),
@@ -18,7 +18,7 @@ setup(
                 (os.path.join('share', package_name,
                               'config'), glob('config/*')),
                 (os.path.join('share', package_name,
-                              'templates'), glob('ros_graph_export/templates/*'))],
+                              'templates'), glob('ros2_graph_export/templates/*'))],
     install_requires=['setuptools', 'Jinja2'],
     zip_safe=True,
     maintainer='root',
@@ -28,6 +28,6 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts':
-        ['ros_graph_export = ros_graph_export.ros_graph_export:main'],
+        ['ros2_graph_export = ros2_graph_export.ros2_graph_export:main'],
     },
 )

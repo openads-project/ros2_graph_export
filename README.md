@@ -1,4 +1,4 @@
-# ros_graph_export
+# ros2_graph_export
 
 Exports ROS node and topic graphs
 
