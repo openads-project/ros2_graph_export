@@ -1,6 +1,6 @@
 [submodule ".devcontainer"]
 	path = .devcontainer
-	url = ../dev-environment/devcontainer.git
+	url = ../../dev-environment/devcontainer.git
 [submodule ".vscode"]
 	path = .vscode
-	url = ../dev-environment/vscode
+	url = ../../dev-environment/vscode
