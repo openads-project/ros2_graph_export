@@ -6,3 +6,4 @@ variables:
   TARGET: dev,run
   BASE_IMAGE: rwthika/ros2:latest
   COMMAND: ros2 run ros2_graph_export ros2_graph_export
+  RMW_IMPLEMENTATION: rmw_zenoh_cpp
