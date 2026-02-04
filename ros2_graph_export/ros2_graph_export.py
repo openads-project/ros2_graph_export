@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from pathlib import Path
+import subprocess
 from typing import Dict, Iterable, List, Tuple
 import re
 
@@ -437,6 +438,16 @@ class Ros2GraphExport(Node):
 
         self.output_path.write_text(rendered, encoding="utf-8")
         self.get_logger().info(f"Wrote D2 graph to {self.output_path}")
+
+        # Automatic SVG export using d2 CLI with --layout elk
+        d2_path = "d2"  # Assumes d2 is in the PATH
+        svg_path = self.output_path.with_suffix(".svg")
+        d2_args = ["--layout", "elk"]
+        try:
+            subprocess.run([d2_path, *d2_args, str(self.output_path), str(svg_path)], check=True)
+            self.get_logger().info(f"Wrote SVG graph to {svg_path}")
+        except Exception as e:
+            self.get_logger().error(f"Failed to render SVG with d2: {e}")
 
 def main() -> None:
     rclpy.init()
