@@ -9,54 +9,101 @@ vars: {
     style.fill: "#f8f9ff"
     style.font-color: "#334155"
     style.border-radius: 8
+    style.font-size: 14
     nodes: "Nodes: {{ node_count }}" {
       style.fill: "#1f77b4"
       style.font-color: white
       style.border-radius: 6
+      style.font-size: 13
     }
     nodes -> nodes: "Topics: {{ edge_count }}" {
       style.stroke: "#17becf"
+      style.font-size: 12
     }
   }
 }
 
 *.style.border-radius: 6
+*.style.font-size: 14
 
 {%- if node_count == 0 %}
-empty: "No active ROS nodes detected"
+empty: "No active ROS nodes detected" {
+  style.font-size: 16
+}
 {%- else %}
+
+{%- set namespace_colors = {
+  0: {"light": "#e8f5e9", "dark": "#43a047", "text": "#1b5e20"},
+  1: {"light": "#ffebee", "dark": "#d32f2f", "text": "#b71c1c"},
+  2: {"light": "#e3f2fd", "dark": "#1976d2", "text": "#0d47a1"},
+  3: {"light": "#fff3e0", "dark": "#f57c00", "text": "#e65100"},
+  4: {"light": "#e0f2f1", "dark": "#00897b", "text": "#004d40"},
+  5: {"light": "#f3e5f5", "dark": "#7b1fa2", "text": "#4a148c"},
+  6: {"light": "#efebe9", "dark": "#6d4c41", "text": "#3e2723"},
+  7: {"light": "#eceff1", "dark": "#546e7a", "text": "#263238"},
+  8: {"light": "#fce4ec", "dark": "#c2185b", "text": "#880e4f"},
+  9: {"light": "#f1f8e9", "dark": "#7cb342", "text": "#33691e"},
+  10: {"light": "#ffccbc", "dark": "#ff6e40", "text": "#bf360c"},
+  11: {"light": "#fff8e1", "dark": "#ffa000", "text": "#ff6f00"}
+} %}
+
+{%- set ns_color_map = {} %}
+{%- set color_index = [0] %}
+
 {%- for container in containers %}
+{%- set top_level_ns = container.identifier.split('.')[0] %}
+{%- if top_level_ns not in ns_color_map %}
+{%- set _ = ns_color_map.update({top_level_ns: namespace_colors[color_index[0] % 12]}) %}
+{%- set _ = color_index.append(color_index.pop() + 1) %}
+{%- endif %}
+{%- set colors = ns_color_map[top_level_ns] %}
 {{ container.identifier }}: "{{ container.label | replace('"', '\\"') }}" {
-  style.fill: "#f0f4ff"
-  style.font-color: "#1f77b4"
+  style.fill: "{{ colors.light }}"
+  style.font-color: "{{ colors.text }}"
   style.border-radius: 8
+  style.font-size: 20
+  style.stroke: "{{ colors.dark }}"
+  style.stroke-width: 3
+  style.bold: true
 }
 {%- endfor %}
 
 {%- for node in nodes %}
+{%- if not node.is_dummy %}
+{%- set top_level_ns = node.identifier.split('.')[0] if '.' in node.identifier else 'default' %}
+{%- set colors = ns_color_map.get(top_level_ns, {"dark": "#455a64", "text": "white"}) %}
 {{ node.identifier }}: "{{ node.label | replace('"', '\\"') }}" {
-  {%- if node.is_dummy %}
+  style.fill: "{{ colors.dark }}"
+  style.font-color: white
+  style.border-radius: 6
+  style.font-size: 14
+  style.stroke-width: 1
+}
+{%- else %}
+{{ node.identifier }}: "{{ node.label | replace('"', '\\"') }}" {
   style.opacity: 0
   style.stroke-width: 0
   style.fill: transparent
   style.font-color: transparent
-  {%- else %}
-  style.fill: "#1f77b4"
-  style.font-color: white
-  style.border-radius: 6
-  {%- endif %}
 }
+{%- endif %}
 {%- endfor %}
 
 {%- for edge in edges %}
 {{ edge.source }} -> {{ edge.target }}: "{{ edge.label | replace('"', '\\"') }}" {
   {%- if edge.edge_type == "missing_subscribers" %}
   style.stroke: "#f97316"
+  style.stroke-width: 2
+  style.stroke-dash: 3
   {%- elif edge.edge_type == "missing_publishers" %}
   style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.stroke-dash: 3
   {%- else %}
   style.stroke: "#17becf"
+  style.stroke-width: 2
   {%- endif %}
+  style.font-size: 12
 }
 {%- endfor %}
 {%- endif %}
