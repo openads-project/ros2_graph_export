@@ -49,6 +49,7 @@ empty: "No active ROS nodes detected" {
 
 {%- set ns_color_map = {} %}
 {%- set color_index = [0] %}
+{%- set node_color_map = {} %}
 
 {%- for container in containers %}
 {%- set top_level_ns = container.identifier.split('.')[0] %}
@@ -57,8 +58,14 @@ empty: "No active ROS nodes detected" {
 {%- set _ = color_index.append(color_index.pop() + 1) %}
 {%- endif %}
 {%- set colors = ns_color_map[top_level_ns] %}
+{%- set depth = container.identifier.count('.') %}
+{%- set fill_color = colors.light if depth == 0 else (colors.dark if depth >= 2 else "#" ~ "%02x%02x%02x"|format(
+  ((colors.light[1:3]|int(base=16)) * 0.25 + (colors.dark[1:3]|int(base=16)) * 0.75)|int,
+  ((colors.light[3:5]|int(base=16)) * 0.25 + (colors.dark[3:5]|int(base=16)) * 0.75)|int,
+  ((colors.light[5:7]|int(base=16)) * 0.25 + (colors.dark[5:7]|int(base=16)) * 0.75)|int
+)) %}
 {{ container.identifier }}: "{{ container.label | replace('"', '\\"') }}" {
-  style.fill: "{{ colors.light }}"
+  style.fill: "{{ fill_color }}"
   style.font-color: "{{ colors.text }}"
   style.border-radius: 8
   style.font-size: 20
@@ -72,6 +79,7 @@ empty: "No active ROS nodes detected" {
 {%- if not node.is_dummy %}
 {%- set top_level_ns = node.identifier.split('.')[0] if '.' in node.identifier else 'default' %}
 {%- set colors = ns_color_map.get(top_level_ns, {"dark": "#455a64", "text": "white"}) %}
+{%- set _ = node_color_map.update({node.identifier: colors.dark}) %}
 {{ node.identifier }}: "{{ node.label | replace('"', '\\"') }}" {
   style.fill: "{{ colors.dark }}"
   style.font-color: white
@@ -90,6 +98,7 @@ empty: "No active ROS nodes detected" {
 {%- endfor %}
 
 {%- for edge in edges %}
+{%- set source_color = node_color_map.get(edge.source, "#17becf") %}
 {{ edge.source }} -> {{ edge.target }}: "{{ edge.label | replace('"', '\\"') }}" {
   {%- if edge.edge_type == "missing_subscribers" %}
   style.stroke: "#f97316"
@@ -100,7 +109,7 @@ empty: "No active ROS nodes detected" {
   style.stroke-width: 2
   style.stroke-dash: 3
   {%- else %}
-  style.stroke: "#17becf"
+  style.stroke: "{{ source_color }}"
   style.stroke-width: 2
   {%- endif %}
   style.font-size: 12
