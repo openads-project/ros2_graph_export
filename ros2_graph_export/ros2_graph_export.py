@@ -1,20 +1,20 @@
 from __future__ import annotations
 
+import re
+import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-import subprocess
 from typing import Dict, Iterable, List, Tuple
-import re
 
 import rclpy
+from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.topic_endpoint_info import TopicEndpointInfo
 from std_srvs.srv import Trigger
-from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
 
 IGNORED_TOPICS = {"/parameter_events", "/rosout"}
 TRANSFORM_PREFIX = "transform_listener_impl_"
@@ -22,6 +22,8 @@ TRANSFORM_PREFIX = "transform_listener_impl_"
 
 @dataclass(frozen=True)
 class NodeDescriptor:
+    """A ROS node in the exported graph."""
+
     identifier: str
     label: str
     namespace: str
@@ -30,6 +32,8 @@ class NodeDescriptor:
 
 @dataclass(frozen=True)
 class ContainerDescriptor:
+    """A namespace container grouping nodes in the exported graph."""
+
     identifier: str
     label: str
     parent: str | None = None
@@ -37,6 +41,8 @@ class ContainerDescriptor:
 
 @dataclass(frozen=True)
 class EdgeDescriptor:
+    """A topic connection between two nodes in the exported graph."""
+
     source: str
     target: str
     topic_name: str
@@ -45,6 +51,7 @@ class EdgeDescriptor:
 
     @property
     def label(self) -> str:
+        """Return the edge label, combining topic name and type if available."""
         if self.topic_type:
             return f"{self.topic_name}\\n{self.topic_type}"
         return self.topic_name
@@ -54,6 +61,7 @@ class Ros2GraphExport(Node):
     """Exports a live ROS graph description as a D2 diagram."""
 
     def __init__(self) -> None:
+        """Declare parameters, resolve the template and start the export timer."""
         super().__init__("ros2_graph_export")
 
         self.declare_parameter("output_path", str(Path.home() / ".ros" / "ros_graph.d2"))
@@ -67,9 +75,7 @@ class Ros2GraphExport(Node):
 
         self.output_path: Path = Path(self.get_parameter("output_path").get_parameter_value().string_value).expanduser()
         self.d2_template_path: Path = self._resolve_template_path()
-        self.export_interval: float = (
-            self.get_parameter("export_interval_seconds").get_parameter_value().double_value
-        )
+        self.export_interval: float = self.get_parameter("export_interval_seconds").get_parameter_value().double_value
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
         self.ignore_topics_without_publishers: bool = (
             self.get_parameter("ignore_topics_without_publishers").get_parameter_value().bool_value
@@ -173,17 +179,9 @@ class Ros2GraphExport(Node):
 
         topics = self.get_topic_names_and_types(no_demangle=False)
 
-        nodes = [
-            (name, namespace)
-            for name, namespace in nodes
-            if self._should_include_node(name, namespace)
-        ]
+        nodes = [(name, namespace) for name, namespace in nodes if self._should_include_node(name, namespace)]
 
-        topics = [
-            (name, types)
-            for name, types in topics
-            if self._should_include_topic(name)
-        ]
+        topics = [(name, types) for name, types in topics if self._should_include_topic(name)]
 
         node_descriptors: List[NodeDescriptor] = []
         node_lookup: Dict[Tuple[str, str], str] = {}
@@ -414,7 +412,9 @@ class Ros2GraphExport(Node):
             seen.add(signature)
             yield info
 
-    def _render_d2(self, graph_data: Tuple[List[NodeDescriptor], List[EdgeDescriptor], List[str], List[ContainerDescriptor]], timestamp: str) -> None:
+    def _render_d2(
+        self, graph_data: Tuple[List[NodeDescriptor], List[EdgeDescriptor], List[str], List[ContainerDescriptor]], timestamp: str
+    ) -> None:
         nodes, edges, topic_names, containers = graph_data
         environment = self._load_template()
 
@@ -449,7 +449,9 @@ class Ros2GraphExport(Node):
         except Exception as e:
             self.get_logger().error(f"Failed to render SVG with d2: {e}")
 
+
 def main() -> None:
+    """Spin the graph export node until interrupted."""
     rclpy.init()
     node = Ros2GraphExport()
     try:

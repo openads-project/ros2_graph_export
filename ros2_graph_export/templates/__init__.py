@@ -1,1 +1,1 @@
-# Package marker for template resources.
+"""Package marker for template resources."""
