@@ -1,9 +1,0 @@
-include:
-  - remote: https://raw.githubusercontent.com/ika-rwth-aachen/docker-ros/main/.gitlab-ci/docker-ros.yml
-
-variables:
-  PLATFORM: amd64,arm64
-  TARGET: dev,run
-  BASE_IMAGE: rwthika/ros2:latest
-  COMMAND: ros2 run ros2_graph_export ros2_graph_export
-  RMW_IMPLEMENTATION: rmw_zenoh_cpp
