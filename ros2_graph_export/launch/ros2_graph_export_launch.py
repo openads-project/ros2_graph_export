@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+# Copyright Institute for Automotive Engineering (ika), RWTH Aachen University
+# SPDX-License-Identifier: Apache-2.0
+
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
@@ -9,7 +12,9 @@ from launch_ros.actions import Node, SetParameter
 def generate_launch_description():
     """Launch file for ros2_graph_export node."""
 
-    remappable_topics = []
+    remappable_topics = [
+        DeclareLaunchArgument("export_graph", default_value="~/export_graph"),
+    ]
 
     args = [
         DeclareLaunchArgument("name", default_value="ros2_graph_export", description="node name"),

@@ -12,18 +12,7 @@
   <a href="https://github.com/openads-project/ros2_graph_export/actions/workflows/consistency.yml"><img src="https://github.com/openads-project/ros2_graph_export/actions/workflows/consistency.yml/badge.svg"/></a>
 </p>
 
-Exports ROS node and topic graphs
-
-## Launch Files
-
-### [`ros2_graph_export_launch.py`](launch/ros2_graph_export_launch.py)
-
-| Argument | Default | Description |
-| --- | --- | --- |
-| `name` | `"ros2_graph_export"` | node name |
-| `namespace` | `""` | node namespace |
-| `log_level` | `"info"` | ROS logging level (debug, info, warn, error, fatal) |
-| `use_sim_time` | `"false"` | use simulation clock |
+**Exports ROS 2 node and topic graphs**
 
 <p align="center">
   <strong>🚀 <a href="#-quick-start">Quick Start</a></strong> • <strong>💻 <a href="#-development">Development</a></strong> • <strong>📝 <a href="#-documentation">Documentation</a></strong>
@@ -93,7 +82,7 @@ Package and node interfaces are documented in the respective package READMEs lis
 
 | Package | Description |
 | --- | --- |
-| [ros2_graph_export](README.md) | Exports ROS node and topic graphs |
+| [ros2_graph_export](ros2_graph_export/README.md) | Exports ROS node and topic graphs |
 
 ## ⚖️ Licensing
 

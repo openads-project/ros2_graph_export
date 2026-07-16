@@ -1,0 +1,22 @@
+services:
+
+  ros2-graph-export:
+    image: ghcr.io/openads-project/ros2_graph_export:v1.0.0
+    environment:
+      # --- name ------
+      NAMESPACE: /
+      NAME: ros2_graph_export
+      # --- other -----
+      EXPORT_GRAPH: ~/export_graph
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      USE_SIM_TIME: ${USE_SIM_TIME:-false}
+    command:
+      - /bin/bash
+      - -ic
+      - |
+        ros2 launch ros2_graph_export ros2_graph_export_launch.py \
+          namespace:=$${NAMESPACE} \
+          name:=$${NAME} \
+          log_level:=$${LOG_LEVEL} \
+          use_sim_time:=$${USE_SIM_TIME} \
+          export_graph:=$${EXPORT_GRAPH}
