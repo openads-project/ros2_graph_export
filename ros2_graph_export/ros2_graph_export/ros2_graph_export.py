@@ -3,17 +3,18 @@
 
 from __future__ import annotations
 
+import fnmatch
 import re
 import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Sequence, Tuple
 
 import rclpy
 from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
-from rcl_interfaces.msg import SetParametersResult
+from rcl_interfaces.msg import ParameterDescriptor, SetParametersResult
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.topic_endpoint_info import TopicEndpointInfo
@@ -71,6 +72,18 @@ class Ros2GraphExport(Node):
         self.declare_parameter("export_interval_seconds", 5.0)
         self.declare_parameter("ignore_topics_without_publishers", True)
         self.declare_parameter("ignore_topics_without_subscribers", True)
+        self.declare_parameter(
+            "excluded_nodes",
+            [],
+            ParameterDescriptor(
+                description=(
+                    "Nodes to exclude from the graph, as fully qualified names (/ns/node) or bare node names. "
+                    "Shell-style wildcards are supported, e.g. /debug/* or *_monitor."
+                ),
+                # An empty default list is inferred as a byte array, so allow the string array set later on.
+                dynamic_typing=True,
+            ),
+        )
 
         self._template_env: Environment | None = None
         self._template_name: str | None = None
@@ -86,6 +99,9 @@ class Ros2GraphExport(Node):
         self.ignore_topics_without_subscribers: bool = (
             self.get_parameter("ignore_topics_without_subscribers").get_parameter_value().bool_value
         )
+        self.excluded_nodes: List[str] = self._coerce_node_patterns(self.get_parameter("excluded_nodes").value)
+        if self.excluded_nodes:
+            self.get_logger().info(f"Excluding nodes matching: {', '.join(self.excluded_nodes)}")
 
         # Prepare parameter change callback for runtime reconfiguration.
         self.add_on_set_parameters_callback(self._parameters_callback)
@@ -125,6 +141,12 @@ class Ros2GraphExport(Node):
                 self.ignore_topics_without_publishers = bool(param.value)
             elif param.name == "ignore_topics_without_subscribers":
                 self.ignore_topics_without_subscribers = bool(param.value)
+            elif param.name == "excluded_nodes":
+                self.excluded_nodes = self._coerce_node_patterns(param.value)
+                if self.excluded_nodes:
+                    self.get_logger().info(f"Excluding nodes matching: {', '.join(self.excluded_nodes)}")
+                else:
+                    self.get_logger().info("Node exclusion disabled")
 
         return result
 
@@ -355,7 +377,25 @@ class Ros2GraphExport(Node):
         if name.startswith("_"):
             return False
 
+        if self._is_node_excluded(name, namespace):
+            return False
+
         return True
+
+    def _coerce_node_patterns(self, value: Sequence[object] | None) -> List[str]:
+        if not value:
+            return []
+        return [str(pattern).strip() for pattern in value if str(pattern).strip()]
+
+    def _is_node_excluded(self, name: str, namespace: str) -> bool:
+        if not self.excluded_nodes:
+            return False
+
+        namespace = namespace or "/"
+        fully_qualified_name = f"{namespace.rstrip('/')}/{name}"
+        candidates = (fully_qualified_name, name)
+
+        return any(fnmatch.fnmatchcase(candidate, pattern) for pattern in self.excluded_nodes for candidate in candidates)
 
     def _should_include_topic(self, topic_name: str) -> bool:
         if topic_name in IGNORED_TOPICS:
