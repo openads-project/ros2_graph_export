@@ -10,6 +10,7 @@ services:
       EXPORT_GRAPH: ~/export_graph
       LOG_LEVEL: ${LOG_LEVEL:-info}
       USE_SIM_TIME: ${USE_SIM_TIME:-false}
+      PARAMS: ${PARAMS:-/docker-ros/ws/install/ros2_graph_export/share/ros2_graph_export/config/params.yml}
     command:
       - /bin/bash
       - -ic
@@ -19,4 +20,7 @@ services:
           name:=$${NAME} \
           log_level:=$${LOG_LEVEL} \
           use_sim_time:=$${USE_SIM_TIME} \
+          params:=$${PARAMS} \
           export_graph:=$${EXPORT_GRAPH}
+    # volumes:
+    #   - ./params.yml:/docker-ros/ws/install/ros2_graph_export/share/ros2_graph_export/config/params.yml
