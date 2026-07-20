@@ -10,7 +10,7 @@ package_name = "ros2_graph_export"
 
 setup(
     name=package_name,
-    version="0.0.0",
+    version="1.0.0",
     packages=[package_name, f"{package_name}.templates"],
     package_data={"ros2_graph_export": ["templates/*.j2"]},
     include_package_data=True,
@@ -23,10 +23,10 @@ setup(
     ],
     install_requires=["setuptools", "Jinja2"],
     zip_safe=True,
-    maintainer="root",
-    maintainer_email="root@todo.todo",
-    description="TODO: Package description",
-    license="TODO: License declaration",
+    maintainer="Lennart Reiher",
+    maintainer_email="lennart.reiher@rwth-aachen.de",
+    description="Exports ROS 2 node and topic graphs",
+    license="Apache-2.0",
     tests_require=["pytest"],
     entry_points={
         "console_scripts": ["ros2_graph_export = ros2_graph_export.ros2_graph_export:main"],
