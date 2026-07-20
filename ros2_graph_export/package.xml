@@ -6,8 +6,8 @@
   <version>1.0.0</version>
   <description>Exports ROS node and topic graphs</description>
 
-<maintainer email="lennart.reiher@rwth-aachen.de">Lennart Reiher</maintainer>
-<author email="lennart.reiher@rwth-aachen.de">Lennart Reiher</author>
+  <maintainer email="lennart.reiher@rwth-aachen.de">Lennart Reiher</maintainer>
+  <author email="lennart.reiher@rwth-aachen.de">Lennart Reiher</author>
 
   <license>Apache-2.0</license>
 
