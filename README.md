@@ -14,6 +14,10 @@
 
 **Exports ROS 2 node and topic graphs**
 
+A sample export generated in the [OpenAStack](https://github.com/openads-project/openadstack) repository is shown below:
+
+![sample graph export](./assets/ros2-graph-export.svg)
+
 <p align="center">
   <strong>🚀 <a href="#-quick-start">Quick Start</a></strong> • <strong>💻 <a href="#-development">Development</a></strong> • <strong>📝 <a href="#-documentation">Documentation</a></strong>
 </p>
