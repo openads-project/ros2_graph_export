@@ -2,7 +2,7 @@
 # generated_at: {{ generated_at }}
 # nodes: {{ node_count }}, topics: {{ topic_count }}, edges: {{ edge_count }}
 
-direction: right
+direction: {{ direction | default("right") }}
 
 vars: {
   d2-legend: {

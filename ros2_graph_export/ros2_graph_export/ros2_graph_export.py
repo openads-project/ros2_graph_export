@@ -22,6 +22,8 @@ from std_srvs.srv import Trigger
 
 IGNORED_TOPICS = {"/parameter_events", "/rosout"}
 TRANSFORM_PREFIX = "transform_listener_impl_"
+GRAPH_DIRECTIONS = ("right", "down", "left", "up")
+DEFAULT_GRAPH_DIRECTION = "right"
 
 
 @dataclass(frozen=True)
@@ -95,6 +97,14 @@ class Ros2GraphExport(Node):
             param_type=rclpy.Parameter.Type.BOOL,
             description="ignore topics without subscribers",
             default=True,
+        )
+        self.graph_direction = self.declare_and_load_parameter(
+            name="graph_direction",
+            param_type=rclpy.Parameter.Type.STRING,
+            description="layout direction of the exported graph: 'right' arranges nodes left-to-right, "
+            "'down' arranges them top-down for a more compact fit on A4 pages",
+            default="right",
+            additional_constraints="one of: right, down, left, up",
         )
         excluded_nodes = self.declare_and_load_parameter(
             name="excluded_nodes",
@@ -477,6 +487,16 @@ class Ros2GraphExport(Node):
             return False
         return True
 
+    def _resolve_graph_direction(self) -> str:
+        direction = str(self.graph_direction or "").strip().lower()
+        if direction not in GRAPH_DIRECTIONS:
+            self.get_logger().warn(
+                f"Unsupported graph_direction '{self.graph_direction}', "
+                f"expected one of {', '.join(GRAPH_DIRECTIONS)}; using '{DEFAULT_GRAPH_DIRECTION}'"
+            )
+            return DEFAULT_GRAPH_DIRECTION
+        return direction
+
     def _sanitize_identifier(self, value: str) -> str:
         safe = re.sub(r"[^0-9a-zA-Z_]+", "_", value)
         if not safe:
@@ -546,6 +566,7 @@ class Ros2GraphExport(Node):
             "edges": edges,
             "topic_names": topic_names,
             "containers": containers,
+            "direction": self._resolve_graph_direction(),
         }
 
         rendered = template.render(context)

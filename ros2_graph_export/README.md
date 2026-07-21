@@ -27,6 +27,7 @@ flowchart LR
 | `export_interval_seconds` | `float` | `5.0` | graph export interval in seconds |
 | `ignore_topics_without_publishers` | `bool` | `true` | ignore topics without publishers |
 | `ignore_topics_without_subscribers` | `bool` | `true` | ignore topics without subscribers |
+| `graph_direction` | `string` | `right` | layout direction of the exported graph: 'right' arranges nodes left-to-right, 'down' arranges them top-down for a more compact fit on A4 pages |
 | `excluded_nodes` | `string[]` | `[]` | Nodes to exclude from the graph, as fully qualified names (/ns/node) or bare node names. Shell-style wildcards are supported, e.g. /debug/* or *_monitor. |
 
 ## Launch Files
