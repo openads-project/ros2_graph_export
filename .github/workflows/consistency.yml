@@ -10,5 +10,3 @@ jobs:
   consistency:
     uses: openads-project/openads-dev-environment/.github/workflows/consistency.yml@main
     secrets: inherit
-    with:
-      skip-checks: ros_nodes_have_parameter_loader

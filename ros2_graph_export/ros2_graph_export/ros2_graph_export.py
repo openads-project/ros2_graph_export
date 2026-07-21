@@ -9,14 +9,14 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import rclpy
+import rclpy.exceptions
 from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
-from rcl_interfaces.msg import ParameterDescriptor, SetParametersResult
+from rcl_interfaces.msg import FloatingPointRange, IntegerRange, ParameterDescriptor, SetParametersResult
 from rclpy.node import Node
-from rclpy.parameter import Parameter
 from rclpy.topic_endpoint_info import TopicEndpointInfo
 from std_srvs.srv import Trigger
 
@@ -68,85 +68,140 @@ class Ros2GraphExport(Node):
         """Declare parameters, resolve the template and start the export timer."""
         super().__init__("ros2_graph_export")
 
-        self.declare_parameter("output_path", str(Path.home() / ".ros" / "ros_graph.d2"))
-        self.declare_parameter("export_interval_seconds", 5.0)
-        self.declare_parameter("ignore_topics_without_publishers", True)
-        self.declare_parameter("ignore_topics_without_subscribers", True)
-        self.declare_parameter(
-            "excluded_nodes",
-            [],
-            ParameterDescriptor(
-                description=(
-                    "Nodes to exclude from the graph, as fully qualified names (/ns/node) or bare node names. "
-                    "Shell-style wildcards are supported, e.g. /debug/* or *_monitor."
-                ),
-                # An empty default list is inferred as a byte array, so allow the string array set later on.
-                dynamic_typing=True,
-            ),
+        self.auto_reconfigurable_params: list[str] = []
+        output_path = self.declare_and_load_parameter(
+            name="output_path",
+            param_type=rclpy.Parameter.Type.STRING,
+            description="graph export path",
+            default=str(Path.home() / ".ros" / "ros_graph.d2"),
         )
+        self.output_path: Path = Path(output_path).expanduser()
+        self.output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        self.export_interval = self.declare_and_load_parameter(
+            name="export_interval_seconds",
+            param_type=rclpy.Parameter.Type.DOUBLE,
+            description="graph export interval in seconds",
+            default=5.0,
+        )
+        self.ignore_topics_without_publishers = self.declare_and_load_parameter(
+            name="ignore_topics_without_publishers",
+            param_type=rclpy.Parameter.Type.BOOL,
+            description="ignore topics without publishers",
+            default=True,
+        )
+        self.ignore_topics_without_subscribers = self.declare_and_load_parameter(
+            name="ignore_topics_without_subscribers",
+            param_type=rclpy.Parameter.Type.BOOL,
+            description="ignore topics without subscribers",
+            default=True,
+        )
+        excluded_nodes = self.declare_and_load_parameter(
+            name="excluded_nodes",
+            param_type=rclpy.Parameter.Type.STRING_ARRAY,
+            description="Nodes to exclude from the graph, as fully qualified names (/ns/node) or bare node names. "
+            "Shell-style wildcards are supported, e.g. /debug/* or *_monitor.",
+            default=[],
+        )
+        self.excluded_nodes: List[str] = self._coerce_node_patterns(excluded_nodes)
+        if self.excluded_nodes:
+            self.get_logger().info(f"Excluding nodes matching: {', '.join(self.excluded_nodes)}")
 
         self._template_env: Environment | None = None
         self._template_name: str | None = None
         self._template_directory: Path | None = None
-
-        self.output_path: Path = Path(self.get_parameter("output_path").get_parameter_value().string_value).expanduser()
         self.d2_template_path: Path = self._resolve_template_path()
-        self.export_interval: float = self.get_parameter("export_interval_seconds").get_parameter_value().double_value
-        self.output_path.parent.mkdir(parents=True, exist_ok=True)
-        self.ignore_topics_without_publishers: bool = (
-            self.get_parameter("ignore_topics_without_publishers").get_parameter_value().bool_value
-        )
-        self.ignore_topics_without_subscribers: bool = (
-            self.get_parameter("ignore_topics_without_subscribers").get_parameter_value().bool_value
-        )
-        self.excluded_nodes: List[str] = self._coerce_node_patterns(self.get_parameter("excluded_nodes").value)
-        if self.excluded_nodes:
-            self.get_logger().info(f"Excluding nodes matching: {', '.join(self.excluded_nodes)}")
+        self.setup()
 
-        # Prepare parameter change callback for runtime reconfiguration.
-        self.add_on_set_parameters_callback(self._parameters_callback)
+    def declare_and_load_parameter(
+        self,
+        name: str,
+        param_type: rclpy.Parameter.Type,
+        description: str,
+        default: Optional[Any] = None,
+        add_to_auto_reconfigurable_params: bool = True,
+        is_required: bool = False,
+        read_only: bool = False,
+        from_value: Optional[Union[int, float]] = None,
+        to_value: Optional[Union[int, float]] = None,
+        step_value: Optional[Union[int, float]] = None,
+        additional_constraints: str = "",
+    ) -> Any:
+        """Declares and loads a ROS parameter
 
-        # Provide a service for manual export requests.
-        self.create_service(Trigger, "~/export_graph", self._handle_export_request)
+        Args:
+            name (str): name
+            param_type (rclpy.Parameter.Type): parameter type
+            description (str): description
+            default (Optional[Any], optional): default value
+            add_to_auto_reconfigurable_params (bool, optional): enable reconfiguration of parameter
+            is_required (bool, optional): whether failure to load parameter will stop node
+            read_only (bool, optional): set parameter to read-only
+            from_value (Optional[Union[int, float]], optional): parameter range minimum
+            to_value (Optional[Union[int, float]], optional): parameter range maximum
+            step_value (Optional[Union[int, float]], optional): parameter range step
+            additional_constraints (str, optional): additional constraints description
 
-        self._export_timer = None
-        if self.export_interval > 0.0:
-            self._export_timer = self.create_timer(self.export_interval, self._perform_export)
-            self.get_logger().info(f"Scheduled periodic graph export every {self.export_interval:.1f} s")
+        Returns:
+            Any: parameter value
+        """
 
-        self._perform_export()
+        # declare parameter
+        param_desc = ParameterDescriptor()
+        param_desc.description = description
+        param_desc.additional_constraints = additional_constraints
+        param_desc.read_only = read_only
+        if from_value is not None and to_value is not None:
+            if param_type == rclpy.Parameter.Type.INTEGER:
+                range = IntegerRange(from_value=from_value, to_value=to_value)
+                if step_value is not None:
+                    range.step = step_value
+                param_desc.integer_range = [range]
+            elif param_type == rclpy.Parameter.Type.DOUBLE:
+                range = FloatingPointRange(from_value=from_value, to_value=to_value)
+                if step_value is not None:
+                    range.step = step_value
+                param_desc.floating_point_range = [range]
+            else:
+                self.get_logger().warn(f"Parameter type of parameter '{name}' does not support specifying a range")
+        self.declare_parameter(name, param_type, param_desc)
 
-    def _parameters_callback(self, params: List[Parameter]) -> SetParametersResult:
-        result = SetParametersResult(successful=True)
+        # load parameter
+        try:
+            param = self.get_parameter(name).value
+            self.get_logger().info(f"Loaded parameter '{name}': {param}")
+        except rclpy.exceptions.ParameterUninitializedException:
+            if is_required:
+                self.get_logger().fatal(f"Missing required parameter '{name}', exiting")
+                raise SystemExit(1)
+            else:
+                self.get_logger().warn(f"Missing parameter '{name}', using default value: {default}")
+                param = default
+                self.set_parameters([rclpy.Parameter(name=name, value=param)])
 
-        for param in params:
-            if param.name == "output_path":
-                self.output_path = Path(param.value).expanduser()
-                self.output_path.parent.mkdir(parents=True, exist_ok=True)
-                self.get_logger().info(f"Updated output path to {self.output_path}")
-            elif param.name == "export_interval_seconds":
-                interval = float(param.value)
-                self.export_interval = interval
-                if interval <= 0.0:
-                    if self._export_timer is not None:
-                        self._export_timer.cancel()
-                        self._export_timer = None
-                    self.get_logger().info("Disabled periodic graph export")
-                else:
-                    if self._export_timer is not None:
-                        self._export_timer.cancel()
-                    self._export_timer = self.create_timer(interval, self._perform_export)
-                    self.get_logger().info(f"Updated export interval to {interval:.1f} s")
-            elif param.name == "ignore_topics_without_publishers":
-                self.ignore_topics_without_publishers = bool(param.value)
-            elif param.name == "ignore_topics_without_subscribers":
-                self.ignore_topics_without_subscribers = bool(param.value)
-            elif param.name == "excluded_nodes":
-                self.excluded_nodes = self._coerce_node_patterns(param.value)
-                if self.excluded_nodes:
-                    self.get_logger().info(f"Excluding nodes matching: {', '.join(self.excluded_nodes)}")
-                else:
-                    self.get_logger().info("Node exclusion disabled")
+        # add parameter to auto-reconfigurable parameters
+        if add_to_auto_reconfigurable_params:
+            self.auto_reconfigurable_params.append(name)
+
+        return param
+
+    def parameters_callback(self, parameters: list[rclpy.Parameter]) -> SetParametersResult:
+        """Handles reconfiguration when a parameter value is changed
+
+        Args:
+            parameters (list[rclpy.Parameter]): parameters
+
+        Returns:
+            SetParametersResult: parameter change result
+        """
+
+        for param in parameters:
+            if param.name in self.auto_reconfigurable_params:
+                setattr(self, param.name, param.value)
+                self.get_logger().info(f"Reconfigured parameter '{param.name}' to: {param.value}")
+
+        result = SetParametersResult()
+        result.successful = True
 
         return result
 
@@ -164,6 +219,22 @@ class Ros2GraphExport(Node):
 
         self.get_logger().error("Default D2 template missing from package resources")
         return package_template
+
+    def setup(self):
+        """Sets up subscribers, publishers, etc. to configure the node"""
+
+        # callback for dynamic parameter configuration
+        self.add_on_set_parameters_callback(self.parameters_callback)
+
+        # Provide a service for manual export requests.
+        self.create_service(Trigger, "~/export_graph", self._handle_export_request)
+
+        self._export_timer = None
+        if self.export_interval > 0.0:
+            self._export_timer = self.create_timer(self.export_interval, self._perform_export)
+            self.get_logger().info(f"Scheduled periodic graph export every {self.export_interval:.1f} s")
+
+        self._perform_export()
 
     def _load_template(self) -> Environment:
         template_path = self.d2_template_path

@@ -4,5 +4,4 @@
     export_interval_seconds: 5.0
     ignore_topics_without_publishers: true
     ignore_topics_without_subscribers: true
-    # Fully qualified names (/ns/node), bare node names, or shell-style wildcards, e.g. ["/debug/*", "*_monitor"]
     excluded_nodes: []
