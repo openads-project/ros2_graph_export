@@ -17,7 +17,7 @@ flowchart LR
 
 | Service | Type | Description |
 | --- | --- | --- |
-| `~/export_graph` | `std_srvs/srv/Trigger` | TODO |
+| `~/export_graph` | `std_srvs/srv/Trigger` | trigger graph export |
 
 #### Parameters
 
