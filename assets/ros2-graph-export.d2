@@ -1,8 +1,8 @@
 # Auto-generated ROS graph from ros2_graph_export
-# generated_at: 2026-07-17 08:01:51+0200
+# generated_at: 2026-07-22 10:19:03+0200
 # nodes: 9, topics: 48, edges: 9
 
-direction: right
+direction: down
 
 vars: {
   d2-legend: {
@@ -143,12 +143,12 @@ ns_perception.point_cloud_object_detection -> ns_understanding.autoware_multi_ob
   style.stroke-width: 2
   style.font-size: 12
 }
-ns_planning.lanelet2_route_planning -> ns_planning.simple_planner: "/planning/lanelet2_route_planning/route\nroute_planning_msgs/msg/Route" {
+ns_planning.lanelet2_route_planning -> ns_planning.trajectory_optimization: "/planning/lanelet2_route_planning/route\nroute_planning_msgs/msg/Route" {
   style.stroke: "#f57c00"
   style.stroke-width: 2
   style.font-size: 12
 }
-ns_planning.lanelet2_route_planning -> ns_planning.trajectory_optimization: "/planning/lanelet2_route_planning/route\nroute_planning_msgs/msg/Route" {
+ns_planning.lanelet2_route_planning -> ns_planning.simple_planner: "/planning/lanelet2_route_planning/route\nroute_planning_msgs/msg/Route" {
   style.stroke: "#f57c00"
   style.stroke-width: 2
   style.font-size: 12
@@ -168,12 +168,12 @@ ns_understanding.autoware_multi_object_tracker -> ns_understanding.lanelet2_obje
   style.stroke-width: 2
   style.font-size: 12
 }
-ns_understanding.lanelet2_object_list_prediction -> ns_planning.simple_planner: "/understanding/lanelet2_object_list_prediction/object_list\nperception_msgs/msg/ObjectList" {
+ns_understanding.lanelet2_object_list_prediction -> ns_planning.trajectory_optimization: "/understanding/lanelet2_object_list_prediction/object_list\nperception_msgs/msg/ObjectList" {
   style.stroke: "#00897b"
   style.stroke-width: 2
   style.font-size: 12
 }
-ns_understanding.lanelet2_object_list_prediction -> ns_planning.trajectory_optimization: "/understanding/lanelet2_object_list_prediction/object_list\nperception_msgs/msg/ObjectList" {
+ns_understanding.lanelet2_object_list_prediction -> ns_planning.simple_planner: "/understanding/lanelet2_object_list_prediction/object_list\nperception_msgs/msg/ObjectList" {
   style.stroke: "#00897b"
   style.stroke-width: 2
   style.font-size: 12
