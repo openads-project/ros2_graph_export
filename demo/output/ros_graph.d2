@@ -1,0 +1,55 @@
+# Auto-generated ROS graph from ros2_graph_export
+# generated_at: 2026-07-22 06:46:44+0000
+# nodes: 2, topics: 1, edges: 1
+
+direction: right
+
+vars: {
+  d2-legend: {
+    style.fill: "#f8f9ff"
+    style.font-color: "#334155"
+    style.border-radius: 8
+    style.font-size: 14
+    nodes: "Nodes: 2" {
+      style.fill: "#1f77b4"
+      style.font-color: white
+      style.border-radius: 6
+      style.font-size: 13
+    }
+    nodes -> nodes: "Topics: 1" {
+      style.stroke: "#17becf"
+      style.font-size: 12
+    }
+  }
+}
+
+*.style.border-radius: 6
+*.style.font-size: 14
+ns_demo: "/demo" {
+  style.fill: "#e8f5e9"
+  style.font-color: "#1b5e20"
+  style.border-radius: 8
+  style.font-size: 20
+  style.stroke: "#43a047"
+  style.stroke-width: 3
+  style.bold: true
+}
+ns_demo.listener: "listener" {
+  style.fill: "#43a047"
+  style.font-color: white
+  style.border-radius: 6
+  style.font-size: 14
+  style.stroke-width: 1
+}
+ns_demo.talker: "talker" {
+  style.fill: "#43a047"
+  style.font-color: white
+  style.border-radius: 6
+  style.font-size: 14
+  style.stroke-width: 1
+}
+ns_demo.talker -> ns_demo.listener: "/demo/chatter\nstd_msgs/msg/String" {
+  style.stroke: "#43a047"
+  style.stroke-width: 2
+  style.font-size: 12
+}

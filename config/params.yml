@@ -1,6 +1,0 @@
-/**/*:
-  ros__parameters:
-    output_path: "~/.ros/ros_graph.d2"
-    export_interval_seconds: 5.0
-    ignore_topics_without_publishers: true
-    ignore_topics_without_subscribers: true
