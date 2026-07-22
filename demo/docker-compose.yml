@@ -1,0 +1,22 @@
+services:
+
+  ros2-graph-export:
+    image: ghcr.io/openads-project/ros2_graph_export:v1.0.0
+    environment:
+      RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+    command: ros2 launch ros2_graph_export ros2_graph_export_launch.py
+    volumes:
+      - ./output/ros_graph.d2:/root/.ros/ros_graph.d2
+      - ./output/ros_graph.svg:/root/.ros/ros_graph.svg
+
+  dummy-publisher:
+    image: rwthika/ros2:jazzy-desktop-full
+    environment:
+      RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+    command: ros2 run demo_nodes_cpp talker --ros-args -r __ns:=/demo
+
+  dummy-subscriber:
+    image: rwthika/ros2:jazzy-desktop-full
+    environment:
+      RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+    command: ros2 run demo_nodes_cpp listener --ros-args -r __ns:=/demo

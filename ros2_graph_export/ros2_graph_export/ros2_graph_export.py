@@ -275,10 +275,7 @@ class Ros2GraphExport(Node):
     def _perform_export(self) -> None:
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S%z")
         graph = self._collect_graph()
-
         self._render_d2(graph, timestamp)
-
-        self.get_logger().info("ROS graph export completed")
 
     def _collect_graph(self) -> Tuple[List[NodeDescriptor], List[EdgeDescriptor], List[str], List[ContainerDescriptor]]:
         nodes = self.get_node_names_and_namespaces()
@@ -422,6 +419,9 @@ class Ros2GraphExport(Node):
         topic_names = sorted(topic_details.keys())
         container_list = self._order_containers(containers)
         node_descriptors.sort(key=lambda node: node.identifier)
+
+        self.get_logger().info(f"Collected graph: {len(node_descriptors)} nodes, {len(topic_names)} topics")
+
         return node_descriptors, edges, topic_names, container_list
 
     def _get_publishers_info(self, topic_name: str) -> List[TopicEndpointInfo]:

@@ -12,9 +12,9 @@
   <a href="https://github.com/openads-project/ros2_graph_export/actions/workflows/consistency.yml"><img src="https://github.com/openads-project/ros2_graph_export/actions/workflows/consistency.yml/badge.svg"/></a>
 </p>
 
-**Exports ROS 2 node and topic graphs**
+**ROS 2 Node and Topic Graph Exporter**
 
-A sample export generated in the [OpenAStack](https://github.com/openads-project/openadstack) repository is shown below:
+The [`ros2_graph_export`](./ros2_graph_export/) node exports the current graph of ROS 2 nodes and topics to a [D2 diagram](https://d2lang.com/) definition file, auto-rendered to SVG. A sample export generated in the [OpenADStack](https://github.com/openads-project/openadstack) repository is shown below.
 
 ![sample graph export](./assets/ros2-graph-export.svg)
 
@@ -27,20 +27,21 @@ A sample export generated in the [OpenAStack](https://github.com/openads-project
 
 ## 🚀 Quick Start
 
-1. Start a container of the pre-built runtime image.
+1. Launch the [`demo/docker-compose.yml`](demo/docker-compose.yml) setup. This will start a ROS 2 graph export node along with a dummy publisher and subscriber node.
     ```bash
-    docker run --rm -it ghcr.io/openads-project/ros2_graph_export:latest bash
+    cd demo
+    docker compose up -d
     ```
-1. Inside the container, launch the pre-built nodes.
+1. Check out the generated D2 diagram defined in [`demo/output/ros_graph.d2`](demo/output/ros_graph.d2) and the rendered SVG in [`demo/output/ros_graph.svg`](demo/output/ros_graph.svg).
+    <a href="./demo/output/ros_graph.svg" target="_blank"><img src="./demo/output/ros_graph.svg" width="200px"></a>
+1. Stop the demo and clean up.
     ```bash
-    ros2 launch ros2_graph_export ros2_graph_export_launch.py
+    docker compose down
     ```
-
-The generated D2 diagram can be rendered with:
-
-```bash
-docker run --rm -it -u "$(id -u):$(id -g)" -v "$PWD:/home/debian/src" -p 8080:8080 terrastruct/d2:v0.7.0 --layout elk --watch ros_graph.d2
-```
+1. If you would like to modify the D2 diagram, you can re-render it with the following command. A live preview of the diagram will be available at [http://localhost:8080](http://localhost:8080). Alternatively, you can also use the [D2 playground](https://play.d2lang.com/?script=zJLPjpswEMbvfoqRc2uXxBgSsj5U6gu0UrfHSojgMVhLcGRPuv0j3r0K-UcIkXrcE7Y_7PnNfN8MPu_JRRW26AtCDd--vkDli10NxrsteBdk3u9z_LVzntgMLj_nBSmQQq4ikUVSglipdKXS9KMQQrAZtE5jUCCfgNzOlkFB_ASoq8NhzJi2HkuyrlXgbVUTYz8LHxT8ZQBaRg1W2OrjFiDQ7wbnxjaNAj4za_NsDB8qrqWodI3zBz1J0ni5HOob5zX6yBfa7oOC9fhqsH9QQZz25ydw_uXUAD9BjDFik2WblN9qA5C32hLeqCOM1f3VE0jSK90VB6JPF67v53GOwQJ594o9WrbB0vCH78vL-x3rGPswf8B3Fm6H1IZc49Yp4IvD94hxOxtcmyU-czZtULxZohRXdcKeu7pSsPs-06QQacZHSvRmNdUKkkGBRisgv0fWnfHnjQ10CLMCfl5OtTKuMWXxQ3unMzYFGw_IqGhee67j4l1R9Um8n2CfhEVZF0Tof7SBdL4NVVhsQ7V4IW_batjF_zoo2XR6O_YvAAD__w%3D%3D&layout=elk&).
+    ```bash
+    docker run --rm -it -u "$(id -u):$(id -g)" -v "$PWD:/home/debian/src" -p 8080:8080 terrastruct/d2:v0.7.0 --layout elk --watch output/ros_graph.d2
+    ```
 
 ## 💻 Development
 
