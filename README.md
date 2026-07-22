@@ -32,8 +32,8 @@ The [`ros2_graph_export`](./ros2_graph_export/) node exports the current graph o
     cd demo
     docker compose up -d
     ```
-1. Check out the generated D2 diagram defined in [`demo/output/ros_graph.d2`](demo/output/ros_graph.d2) and the rendered SVG in [`demo/output/ros_graph.svg`](demo/output/ros_graph.svg).
-    <a href="./demo/output/ros_graph.svg" target="_blank"><img src="./demo/output/ros_graph.svg" width="200px"></a>
+1. Check out the generated D2 diagram defined in [`demo/output/ros_graph.d2`](demo/output/ros_graph.d2) and the rendered SVG in [`demo/output/ros_graph.svg`](demo/output/ros_graph.svg).  
+    <a href="https://raw.githubusercontent.com/openads-project/ros2_graph_export/refs/heads/openads/demo/output/ros_graph.svg" target="_blank"><img src="./demo/output/ros_graph.svg" width="200px"></a>
 1. Stop the demo and clean up.
     ```bash
     docker compose down
