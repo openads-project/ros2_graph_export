@@ -1,7 +1,7 @@
 # ros2_graph_export
 
 <p align="center">
-  <a href="https://github.com/openads-project"><img src="https://img.shields.io/badge/OpenADS-f5ff01"/></a>
+  <a href="https://openads-project.github.io"><img src="https://img.shields.io/badge/OpenADS-f5ff01"/></a>
   <a href="https://www.ros.org"><img src="https://img.shields.io/badge/ROS 2-jazzy-22314e"/></a>
   <a href="https://github.com/openads-project/ros2_graph_export/releases/latest"><img src="https://img.shields.io/github/v/release/openads-project/ros2_graph_export"/></a>
   <a href="https://github.com/openads-project/ros2_graph_export/blob/main/LICENSE"><img src="https://img.shields.io/github/license/openads-project/ros2_graph_export"/></a>
