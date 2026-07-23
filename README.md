@@ -1,7 +1,7 @@
 # ros2_graph_export
 
 <p align="center">
-  <a href="https://github.com/openads-project"><img src="https://img.shields.io/badge/OpenADS-f5ff01"/></a>
+  <a href="https://openads-project.github.io"><img src="https://img.shields.io/badge/OpenADS-f5ff01"/></a>
   <a href="https://www.ros.org"><img src="https://img.shields.io/badge/ROS 2-jazzy-22314e"/></a>
   <a href="https://github.com/openads-project/ros2_graph_export/releases/latest"><img src="https://img.shields.io/github/v/release/openads-project/ros2_graph_export"/></a>
   <a href="https://github.com/openads-project/ros2_graph_export/blob/main/LICENSE"><img src="https://img.shields.io/github/license/openads-project/ros2_graph_export"/></a>
@@ -23,7 +23,7 @@ The [`ros2_graph_export`](./ros2_graph_export/) node exports the current graph o
 </p>
 
 > [!IMPORTANT]
-> This repository is part of [***OpenADS***](https://github.com/openads-project), the *Open Automated Driving Systems* project. *OpenADS* and its modules have been initiated and are currently being maintained by the [**Institute for Automotive Engineering (ika) at RWTH Aachen University**](https://www.ika.rwth-aachen.de/de/).
+> This repository is part of [***OpenADS***](https://openads-project.github.io/), the *Open Automated Driving Systems* project. *OpenADS* and its modules have been initiated and are currently being maintained by the [**Institute for Automotive Engineering (ika) at RWTH Aachen University**](https://www.ika.rwth-aachen.de/de/).
 
 ## 🚀 Quick Start
 
