@@ -1,0 +1,9 @@
+apiVersion: v2
+name: ros2-graph-export
+version: 1.0.0
+appVersion: 1.0.0
+description: ROS 2 Node and Topic Graph Exporter
+dependencies:
+  - repository: oci://ghcr.io/openads-project/openads-helm
+    name: openadservice
+    version: 1.0.0
